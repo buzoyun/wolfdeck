@@ -1025,7 +1025,7 @@ if (showTeamWolfPopup && selectedTeamWolfId) {
   if (wolf) {
     const { abilityScores } = getWolfAbilities(wolf);
     const has3T = has3TBonus(wolf);
-    if (has3T) abilityScores["3T Bonus"] = 3;
+    if (has3T) abilityScores["3T Bonus"] = 9;
 
     const attackColX = popupX + 100;
     const defenseColX = popupX + 210;
@@ -2578,8 +2578,6 @@ function mousePressed() {
 
   const leftMargin = 10 + 200 + 10;
   // Takım detay kutusu kontrolü (Team Info)
-  const teamInfoX = 62; // drawTeamSection'daki teamInfoX ile eşleşiyor
-  const teamInfoY = 25; // drawTeamSection'daki teamInfoY ile eşleşiyor
   const teamInfoWidth = 75 - 10; // Box genişliği (boxWidth - padding)
   const teamInfoHeight = 75 - 3; // Box yüksekliği (drawTeamSection'daki yükseklik)
   // Rival Pack Team Info butonunun GERÇEK konumunu kontrol et
@@ -2587,17 +2585,27 @@ function mousePressed() {
   const rivalTeamInfoY = 60 + 25; // drawTeamSection'daki yPos (60) + teamInfoY (25)
   const rivalTeamInfoWidth = 75 - 10; // boxWidth - padding
   const rivalTeamInfoHeight = 75 - 3; // boxHeight - padding  
+  
+  // Your Pack Team Info kontrolü:
+  const yourPackX = leftMargin; // 220
+  const yourPackY = 305 + 240 + 120; // P1'in Y pozisyonu = 665
+  const teamInfoX = 23; // drawTeamSection'daki değer
+  const teamInfoY = 25; // drawTeamSection'daki değer
+  const wcImgX = yourPackX + teamInfoX + 13; // Global X
+  const wcImgY = yourPackY + teamInfoY + 12; // Global Y
+  const wcImgWidth = 50;
+  const wcImgHeight = 46;
 
 if (
-  mouseX >= leftMargin + teamInfoX &&
-  mouseX <= leftMargin + teamInfoX + teamInfoWidth &&
-  mouseY >= 305 + 120 + teamInfoY && // Player 1'in Y konumu (drawTeamSection'daki yPos + teamInfoY)
-  mouseY <= 305 + 120 + teamInfoY + teamInfoHeight
+  mouseX >= wcImgX &&
+  mouseX <= wcImgX + wcImgWidth &&
+  mouseY >= wcImgY &&
+  mouseY <= wcImgY + wcImgHeight
 ) {
   console.log("Your Pack Team Info tıklandı!");
   showTeamPopup = true;
   selectedTeamIDs = userSelectedIDs;
-  return; // Diğer kontrolleri atla
+  return;
 }
 
 if (
@@ -2755,8 +2763,6 @@ if (showTeamPopup) {
   }
 
 // Your Pack ve Rival Pack için ✖ simgesi kontrolü
-const yourPackX = leftMargin; // 220
-const yourPackY = 305 + 240 + 120; // P1'in Y pozisyonu = 665
 const xButtonX = yourPackX + leftSectionWidth - 30; // 220 + 400 - 30 = 590
 const xButtonY = yourPackY + 15; // 665 + 15 = 680
 const xButtonSize = 20;
@@ -3287,66 +3293,53 @@ function has3TBonus(wolf) {
 }
 function calculateWolfPoints(wolf) {
   if (!wolf) {
-    return { totalPoints: 0, attackingPoints: 0, defensivePoints: 0 };
+    return { 
+      totalPoints: 0, 
+      attackingPoints: 0, 
+      defensivePoints: 0,
+      baseTotalPoints: 0 // Yeni eklenen
+    };
   }
 
   const { abilityScores } = getWolfAbilities(wolf);
+  
+  const attackingPoints = ["Morale", "Money", "Sneak", "Rage", "Bloodlust"]
+    .reduce((sum, ability) => sum + (abilityScores[ability] || 0), 0);
+  
+  const defensivePoints = ["Fear", "Cunning", "Perception", "Composure", "Badass"]
+    .reduce((sum, ability) => sum + (abilityScores[ability] || 0), 0);
 
-  const attackingPoints = Object.entries(abilityScores || {})
-    .filter(([ability]) =>
-      ["Morale", "Money", "Sneak", "Rage", "Bloodlust"].includes(ability)
-    )
-    .reduce((sum, [, score]) => sum + (score || 0), 0);
-
-  const defensivePoints = Object.entries(abilityScores || {})
-    .filter(([ability]) =>
-      ["Fear", "Cunning", "Perception", "Composure", "Badass"].includes(ability)
-    )
-    .reduce((sum, [, score]) => sum + (score || 0), 0);
-
-  const totalPoints = attackingPoints + defensivePoints;
-
-  return { totalPoints, attackingPoints, defensivePoints };
+  const baseTotalPoints = attackingPoints + defensivePoints; // Tanım eklendi
+  
+  return { 
+    totalPoints: baseTotalPoints,
+    attackingPoints,
+    defensivePoints,
+    baseTotalPoints // Döndürülen değere eklendi
+  };
 }
 
 function calculateTeamPoints(selectedIDs) {
-  let totalPoints = 0;
-  let attackingPoints = 0;
-  let defensivePoints = 0;
-
   const selectedWolves = selectedIDs
-    .map((id) => wolfdata.find((w) => w.id === id))
-    .filter((wolf) => wolf !== undefined);
+    .map(id => wolfdata.find(w => w.id === id))
+    .filter(wolf => wolf);
 
-  if (selectedWolves.length === 0) {
-    return { totalPoints: 0, attackingPoints: 0, defensivePoints: 0 };
-  }
-
-  selectedWolves.forEach((wolf) => {
-    const {
-      totalPoints: wolfTotal,
-      attackingPoints: wolfAttack,
-      defensivePoints: wolfDefense,
-    } = calculateWolfPoints(wolf);
-    totalPoints += wolfTotal || 0;
-    attackingPoints += wolfAttack || 0;
-    defensivePoints += wolfDefense || 0;
+  // Base points hesapla (3T bonus hariç)
+  let baseTotalPoints = 0;
+  selectedWolves.forEach(wolf => {
+    const { baseTotalPoints: wolfBase } = calculateWolfPoints(wolf); // Destructuring kullanımı
+    baseTotalPoints += wolfBase;
   });
 
-  const numberOf3TWolves = selectedWolves.filter((wolf) => has3TBonus(wolf)).length;
-  let threeTBonus = 0;
-  if (numberOf3TWolves === 1) {
-    threeTBonus = 9;
-  } else if (numberOf3TWolves === 2) {
-    threeTBonus = 18;
-  } else if (numberOf3TWolves >= 3) {
-    threeTBonus = 27;
-  }
+  // 3T bonus hesapla
+  const numberOf3TWolves = selectedWolves.filter(wolf => has3TBonus(wolf)).length;
+  const threeTBonus = numberOf3TWolves * 9;
 
-  attackingPoints += threeTBonus;
-  totalPoints = attackingPoints + defensivePoints;
-
-  return { totalPoints, attackingPoints, defensivePoints };
+  return {
+    baseTotalPoints,
+    totalBonus: threeTBonus,
+    totalPoints: baseTotalPoints + threeTBonus
+  };
 }
 
 function calculateTraitBonusScore(wolves) {
@@ -3436,11 +3429,11 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
       mouseY <= yPos + xButtonY + xButtonSize/2
     ) {
       push();
-      textFont("Arial")
+      textFont("Arial");
       fill(255, 0, 0);
       ellipse(xButtonX, xButtonY, xButtonSize, xButtonSize);
       fill("#FFFFFF");
-      text("✖", xButtonX - 6, xButtonY + 5);
+      text("✖", xButtonX, xButtonY + 5);
       pop();      
     }
   }
@@ -3450,14 +3443,14 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
   let teamInfoX = 23;
   let teamInfoY = 25;
 
-  // WC Logo için hover ve tıklama değişkenleri
+  // WC Logo için hover ve tıklama
   let isHoveringWcImg = false;
-  const wcImgX = teamInfoX + 13;
-  const wcImgY = teamInfoY + 12;
+  const wcImgX = teamInfoX + 13; // X pozisyonu güncellendi
+  const wcImgY = teamInfoY + 12; // Y pozisyonu güncellendi
   const wcImgWidth = 50;
   const wcImgHeight = 46;
 
-  // Hover kontrolü (logo için)
+  // Hover kontrolü
   if (
     mouseX >= xPos + wcImgX &&
     mouseX <= xPos + wcImgX + wcImgWidth &&
@@ -3472,13 +3465,7 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
     hoverAlpha = lerp(hoverAlpha, 0, 0.2);
   }
 
-  // WC Logosu çiziminden hemen sonra bu kodu ekleyin:
-if (isHoveringWcImg && mouseIsPressed) {
-  showTeamPopup = true;
-  selectedTeamIDs = selectedIDs; // Mevcut takımı seç
-}
-  
-  // WC Logosu (hover efektli)
+  // WC Logosu
   push();
   translate(wcImgX + wcImgWidth/2, wcImgY + wcImgHeight/2);
   scale(hoverScale);
@@ -3495,34 +3482,32 @@ if (isHoveringWcImg && mouseIsPressed) {
   }
   pop();
 
-  // Puan bilgileri
-  // 3T Bonus hesaplaması (değişkeni en başta tanımla)
-  const threeTBonusCount = selectedIDs.filter(id => {
-    const wolf = wolfdata.find(w => w.id === id);
-    return wolf && has3TBonus(wolf);
-  }).length;
-  
-  const threeTBonus = threeTBonusCount === 1 ? 3 : 
-                     threeTBonusCount === 2 ? 12 : 
-                     threeTBonusCount >= 3 ? 27 : 0;  
-  // Trait Bonus hesaplaması
+  // Puan hesaplamaları
   const selectedWolves = selectedIDs.map(id => wolfdata.find(w => w.id === id)).filter(w => w);
+  
+  // Base puanları hesapla (3T bonus hariç)
+  let baseTotalPoints = 0;
+  selectedWolves.forEach(wolf => {
+    const { totalPoints } = calculateWolfPoints(wolf);
+    baseTotalPoints += totalPoints;
+  });
+
+  // 3T Bonus hesapla (1 kurt = +9, 2 kurt = +18, 3 kurt = +27)
+  const threeTCount = selectedWolves.filter(wolf => has3TBonus(wolf)).length;
+  const threeTBonus = threeTCount * 9;
+
+  // Trait Bonus hesapla
   const traitBonuses = calculateTraitBonuses(selectedWolves);
   let totalTraitBonus = 0;
   selectedWolves.forEach(wolf => {
     totalTraitBonus += getWolfTraitBonuses(wolf, traitBonuses);
-  });  
-  
-  const { attackingPoints, defensivePoints } = calculateTeamPoints(selectedIDs);
-  const baseTotalPoints = attackingPoints + defensivePoints - 
-    (selectedIDs.filter(id => has3TBonus(wolfdata.find(w => w.id === id))).length >= 3 ? 27 : 
-     selectedIDs.filter(id => has3TBonus(wolfdata.find(w => w.id === id))).length === 2 ? 12 : 
-     selectedIDs.filter(id => has3TBonus(wolfdata.find(w => w.id === id))).length === 1 ? 3 : 0);
+  });
 
-  // Toplam bonus
+  // Toplam bonus (3T + Trait)
   const totalBonus = threeTBonus + totalTraitBonus;
-  
-  if (selectedIDs.length > 0) { // En az 1 kurt seçiliyse göster 
+
+  // Puan gösterimi (base + bonus)
+  if (selectedIDs.length > 0) {
     push();
     textSize(12);
     textFont("Trebuchet MS");
@@ -3533,11 +3518,8 @@ if (isHoveringWcImg && mouseIsPressed) {
     text(`${baseTotalPoints} + ${totalBonus}`, teamInfoX + boxWidth/2, teamInfoY + 75);
     pop();
   }
-  
-  // Kurt resimleri ve bonus göstergeleri
-  const numberOf3TWolves = selectedWolves.filter(wolf => has3TBonus(wolf)).length;
-  const bonusPerWolf3T = numberOf3TWolves >= 3 ? 9 : numberOf3TWolves === 2 ? 9 : numberOf3TWolves === 1 ? 9 : 0;
 
+  // Kurt resimleri ve bonus göstergeleri
   for (let i = 0; i < 3; i++) {
     let imgX = teamInfoX + boxWidth + spacing + i * (boxWidth + spacing);
     let imgY = 25;
@@ -3551,48 +3533,48 @@ if (isHoveringWcImg && mouseIsPressed) {
         height: 75
       });
 
-// Kurt resmi
-push();
-drawingContext.save();
-drawingContext.beginPath();
-drawingContext.roundRect(imgX + 5, imgY + 3, boxWidth - 10, 75 - 3, 5);
-drawingContext.clip();
-image(loadedImages[selectedIDs[i]], imgX, imgY, boxWidth, 75);
-drawingContext.restore();
+      // Kurt resmi
+      push();
+      drawingContext.save();
+      drawingContext.beginPath();
+      drawingContext.roundRect(imgX + 5, imgY + 3, boxWidth - 10, 75 - 3, 5);
+      drawingContext.clip();
+      image(loadedImages[selectedIDs[i]], imgX, imgY, boxWidth, 75);
+      drawingContext.restore();
 
-// Bonus göstergeleri - YENİ KOD
-const wolf = selectedWolves[i];
-if (wolf) {
-  // 3T Bonus (sağ üst köşe)
-  if (has3TBonus(wolf)) {
-    push();
-    textSize(14);
-    textFont("Trebuchet MS");
-    textStyle(BOLD);
-    fill(0); // Siyah arka plan
-    stroke(255); // Beyaz çerçeve
-    strokeWeight(2);
-    textAlign(RIGHT, TOP);
-    text(`${bonusPerWolf3T}`, imgX + boxWidth - 10, imgY + 5);
-    pop();
-  }
+      // Bonus göstergeleri
+      const wolf = selectedWolves[i];
+      if (wolf) {
+        // 3T Bonus (sağ üst)
+        if (has3TBonus(wolf)) {
+          push();
+          textSize(14);
+          textFont("Trebuchet MS");
+          textStyle(BOLD);
+          fill(0);
+          stroke(255);
+          strokeWeight(2);
+          textAlign(RIGHT, TOP);
+          text("9", imgX + boxWidth - 10, imgY + 5); // Her 3T kurt için +9
+          pop();
+        }
 
-  // Trait Bonus (sol üst köşe)
-  const traitBonus = getWolfTraitBonuses(wolf, traitBonuses);
-  if (traitBonus > 0) {
-    push();
-    textSize(14);
-    textFont("Trebuchet MS");
-    textStyle(BOLD);
-    fill(0); // Siyah arka plan
-    stroke(255); // Beyaz çerçeve
-    strokeWeight(2);
-    textAlign(LEFT, TOP);
-    text(`${traitBonus}`, imgX + 10, imgY + 5);
-    pop();
-  }
-}
-pop(); // Kurt resmi için push'u kapat
+        // Trait Bonus (sol üst)
+        const traitBonus = getWolfTraitBonuses(wolf, traitBonuses);
+        if (traitBonus > 0) {
+          push();
+          textSize(14);
+          textFont("Trebuchet MS");
+          textStyle(BOLD);
+          fill(0);
+          stroke(255);
+          strokeWeight(2);
+          textAlign(LEFT, TOP);
+          text(traitBonus.toString(), imgX + 10, imgY + 5);
+          pop();
+        }
+      }
+      pop();
     } else {
       // Boş yuva
       push();
