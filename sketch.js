@@ -1363,7 +1363,7 @@ if (showTeamPopup && selectedTeamIDs) {
     textAlign(LEFT);
     const infoStartY = popupY + 440; // Popup'un alt kısmına yakın
     text("• Each skill blocks another (e.g. Perception blocks Sneak)", popupX + 10, infoStartY + 10);
-    text("• +1 bonus for 2 same traits, +3 bonus for triple", popupX + 10, infoStartY + 25);
+    text("• +2 bonus for 2 same traits, +3 bonus for triple", popupX + 10, infoStartY + 25);
     text("• +9 bonus per 3T wolf (wolves with only 3 traits)", popupX + 10, infoStartY + 40);  
   
   
@@ -3389,7 +3389,7 @@ function calculateTraitBonuses(selectedWolves) {
     if (count >= 3) {
       bonuses[traitKey] = 3; // 3 veya daha fazla trait için her kurt 3 bonus alır
     } else if (count === 2) {
-      bonuses[traitKey] = 1; // 2 trait için her kurt 1 bonus alır
+      bonuses[traitKey] = 2; // 2 trait için her kurt 2 bonus alır
     }
     // 1 trait için bonus verilmez, bu yüzden else durumu eklenmedi
   });
