@@ -1145,7 +1145,13 @@ function draw() {
       textStyle(NORMAL);
       fill("#e1e2e6");
       text("Skills", attackColX + 80, attackYOffset);
+    if (selectedTeamType === "opponent" && rivalPackTitle !== "Player 2") {
+      text("Skills", attackColX + 80, attackYOffset);
+      text("", 255, 453);
+    } else {
+      text("Skills", attackColX + 80, attackYOffset);
       text("Remove wolf?", 255, 453);
+    } 
       attackYOffset += 20;
       defenseYOffset += 20;
 
