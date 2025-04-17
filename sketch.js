@@ -56,6 +56,18 @@ const blockRules = {
   Bloodlust: "Badass",
   Badass: "Morale"
 };
+const skillBlockRules = {
+  Perception: { blocks: "Sneak", blockedBy: "Rage" },
+  Sneak: { blocks: "Cunning", blockedBy: "Perception" },
+  Rage: { blocks: "Perception", blockedBy: "Badass" },
+  Badass: { blocks: "Rage", blockedBy: "Bloodlust" },
+  Bloodlust: { blocks: "Badass", blockedBy: "Composure" },
+  Composure: { blocks: "Bloodlust", blockedBy: "Morale" },
+  Morale: { blocks: "Composure", blockedBy: "Fear" },
+  Fear: { blocks: "Morale", blockedBy: "Money" },
+  Money: { blocks: "Fear", blockedBy: "Cunning" },
+  Cunning: { blocks: "Money", blockedBy: "Sneak" }
+};
 const headers = [
   "id",
   "Total Points",
@@ -70,6 +82,18 @@ const headers = [
   "Composure",
   "Badass",
   "3T Bonus",
+];
+const skillOrder = [
+      "Morale",
+      "Badass",
+      "Bloodlust",
+      "Composure",
+      "Rage",
+      "Perception",
+      "Sneak",
+      "Cunning",
+      "Money",
+      "Fear",
 ];
 
 // Global değişkenler
@@ -191,7 +215,7 @@ let originalCardPositions = { p1: [], p2: [] }; // Orijinal konumları saklayaca
 let rivalCurrentPage = 0;
 let rivalItemsPerPage = 9; // Bir sayfada 9 satır
 let rivalFirstPageButton, rivalPrevPageButton, rivalNextPageButton, rivalLastPageButton;
-let removeWolfButton; // Button for removing the wolf
+let removeWolfButton, keepWolfButton; // Button for removing the wolf
 let p1WolfPositions = []; // P1 takımındaki kurtların pozisyonları
 let p2WolfPositions = []; // P2 takımındaki kurtların pozisyonları
 let showTeamWolfPopup = false;
@@ -212,6 +236,11 @@ let showInfoBox = false; // Bilgi kutucuğunun görünüp görünmeyeceğini kon
 let infoBoxText = "";    // Bilgi kutucuğunda gösterilecek metin
 let infoBoxX = 0;        // Bilgi kutucuğunun X pozisyonu
 let infoBoxY = 0;        // Bilgi kutucuğunun Y pozisyonu
+let canvasWidth = 840;
+let canvasHeight = 870;
+let showSkillDetailsPopup = false; // Controls visibility of the skill details popup
+let selectedSkill = null;          // The skill clicked (e.g., "Morale", "Rage")
+let skillDetails = [];             // Array of { id, traits } for wolves with contributing traits
 
 
 // Puanları önceden hesapla
@@ -418,10 +447,17 @@ playButton.mousePressed(() => {
     });
   }
 
-removeWolfButton = createButton("Remove wolf");
-if (removeWolfButton) {
-  styleButton(removeWolfButton);
+removeWolfButton = createButton("REMOVE");
+  if (removeWolfButton) {
+  removeWolfButton.size(65, 25); // Daha büyük boyut
+  removeWolfButton.style("background-color", "#ff4c40"); // P1 mavi
+  removeWolfButton.style("color", "#ffffff");
+  removeWolfButton.style("border", "2px solid #cc3a35");
+  removeWolfButton.style("border-radius", "20px");
+  removeWolfButton.style("font-size", "14px");
+  removeWolfButton.style("font-weight", "bold");
   removeWolfButton.style("cursor", "pointer");
+  removeWolfButton.style("box-shadow", "0 4px 8px rgba(0,0,0,0.3)");
   removeWolfButton.hide();
   removeWolfButton.mousePressed(() => {
     if (selectedTeamWolfId && selectedTeamType) {
@@ -445,6 +481,23 @@ if (removeWolfButton) {
   });
 }  
   
+
+keepWolfButton = createButton("KEEP IT");
+  if (keepWolfButton) {
+  keepWolfButton.size(65, 25);
+  keepWolfButton.style("background-color", "#808080");
+  keepWolfButton.style("color", "#ffffff");
+  keepWolfButton.style("border", "2px solid #666666");
+  keepWolfButton.style("border-radius", "20px");
+  keepWolfButton.style("font-size", "14px");
+  keepWolfButton.style("font-weight", "bold");
+  keepWolfButton.style("cursor", "pointer");
+  keepWolfButton.style("box-shadow", "0 4px 8px rgba(0,0,0,0.3)");
+  keepWolfButton.hide();
+  keepWolfButton.mousePressed(() => {
+    closeTeamWolfPopup();
+  });
+  } 
   
   searchInput = createInput("");
   if (searchInput) {
@@ -548,6 +601,7 @@ function closeTeamWolfPopup() {
   selectedTeamWolfId = null;
   selectedTeamType = null;
   removeWolfButton.hide();
+  keepWolfButton.hide();
 }
 
 // Dropdown için stil fonksiyonu
@@ -564,38 +618,29 @@ function styleSelect(sel) {
 // draw fonksiyonu
 function draw() {
   background("#181530");
-  //document.body.style.backgroundColor = "#181530";
-  //background("#000000"); // Canvas içi siyah
-  document.body.style.backgroundColor = "#000000"; // Sayfa arka planı siyah
+  document.body.style.backgroundColor = "#000000";
 
-  // Çerçeveyi çiz
+  // Draw Canvas Border
   noFill();
   stroke("#3f3973");
   strokeWeight(4);
-  rect(0, 0, width, height);
+  rect(0, 0, canvasWidth, canvasHeight);
   noStroke();
 
+  // Title
   textSize(16);
   textStyle(BOLD);
   fill("#e1e2e6");
   textAlign(CENTER);
   text("WolfDeck", 400, 40);
 
-
-  // Wolf Capital yazısı (tıklanabilir)
+  // Wolf Capital Link
   textSize(12);
-  fill("#91eee6"); // Turkuaz renk
+  fill("#91eee6");
   textStyle(BOLD);
   text("by Wolf Capital", 485, 40);
 
-  // Wolf Capital yazısının üzerine gelince el işareti çıkması ve tıklama kontrolü
-  if (mouseX >= 450 && mouseX <= 540 && mouseY >= 25 && mouseY <= 40) {
-  cursor(HAND);
-  } else if (!showPopup && !showTeamPopup) {
-  cursor(ARROW);
-  }
-
-  // Wolf Selection Bölümü
+  // Wolf Selection Section
   const tableSectionWidth = 200;
   const tableSectionX = 10;
   const tableSectionY = 60;
@@ -638,9 +683,12 @@ function draw() {
       return sortAscending ? valA - valB : valB - valA;
     });
   }
-  const pageData = sortedWolfdata.slice(startIndex, min(startIndex + itemsPerPage, sortedWolfdata.length));
+  const pageData = sortedWolfdata.slice(
+    startIndex,
+    Math.min(startIndex + itemsPerPage, sortedWolfdata.length)
+  );
   let yOffset = 150 + 45;
-  pageData.forEach((wolf, index) => {
+  pageData.forEach((wolf) => {
     noFill();
     stroke("#3f3973");
     strokeWeight(1);
@@ -649,12 +697,26 @@ function draw() {
   });
   pop();
 
-// Takım Bölümleri
+  // Team Sections
   const leftMargin = tableSectionX + tableSectionWidth + 10;
-  p2WolfPositions = drawTeamSection(opponentSelectedIDs, leftMargin, 60, rivalPackTitle, "#ffe0e0", leftSectionWidth);
-  p1WolfPositions = drawTeamSection(userSelectedIDs, leftMargin, 305 + 240 + 120, "Player 1", "#e0f0ff", leftSectionWidth);
-  
-// Savaş Alanı
+  p2WolfPositions = drawTeamSection(
+    opponentSelectedIDs,
+    leftMargin,
+    60,
+    rivalPackTitle,
+    "#ffe0e0",
+    leftSectionWidth
+  );
+  p1WolfPositions = drawTeamSection(
+    userSelectedIDs,
+    leftMargin,
+    305 + 240 + 120,
+    "Player 1",
+    "#e0f0ff",
+    leftSectionWidth
+  );
+
+  // Battle Area
   push();
   fill("#2e2a54");
   stroke("#3f3973");
@@ -664,90 +726,114 @@ function draw() {
   vertex(leftMargin + offset, 170);
   vertex(leftMargin + leftSectionWidth - offset, 170);
   vertex(leftMargin + leftSectionWidth, 170 + middleHeight);
-  vertex(leftMargin + leftSectionWidth - offset, 170 + 495); // 375 + 120 = 495
+  vertex(leftMargin + leftSectionWidth - offset, 170 + 495);
   vertex(leftMargin + offset, 170 + 495);
   vertex(leftMargin, 170 + middleHeight);
   endShape(CLOSE);
   stroke("#3f3973");
   strokeWeight(2);
-  line(leftMargin + 10, 170 + middleHeight, leftMargin + leftSectionWidth - 10, 170 + middleHeight);
+  line(
+    leftMargin + 10,
+    170 + middleHeight,
+    leftMargin + leftSectionWidth - 10,
+    170 + middleHeight
+  );
   pop();
 
-  // Renkler
+  // End Turn Button Background
   const defaultColor = "#808080";
   const activeColor = "#91eee6";
-
-
-  // End Turn arka planı (aşağı kaydı)
   if (playButton && playButton.elt.style.display !== "none") {
     push();
-    translate(playButton.x, playButton.y + 125); // 125 aşağı kaydır
-    fill(userSelectedIDs.length > 0 && opponentSelectedIDs.length > 0 ? activeColor : defaultColor);
+    translate(playButton.x, playButton.y + 125);
+    fill(
+      userSelectedIDs.length > 0 && opponentSelectedIDs.length > 0
+        ? activeColor
+        : defaultColor
+    );
     noStroke();
     rect(0, 0, 100, 30, 5);
     pop();
   }
 
-// Kartların çizimi (önceki gibi ama middleHeight güncellendi)
-  if (!battleStarted && (userSelectedIDs.length > 0 || opponentSelectedIDs.length > 0))  {
+  // Draw Cards
+  if (!battleStarted && (userSelectedIDs.length > 0 || opponentSelectedIDs.length > 0)) {
     const cardSize = 75;
     const cardSpacing = 3;
     const textOffset = 15;
     const maxCardsPerRow = 5;
-    const middleLineY = 170 + middleHeight; // Yeni orta çizgi: 417.5
-    const p1Cards = calculateCards(userSelectedIDs).filter(card => card.ability !== "3T Bonus");
-    const p2Cards = calculateCards(opponentSelectedIDs).filter(card => card.ability !== "3T Bonus");
+    const middleLineY = 170 + middleHeight;
 
-// Player 1 kartları
-if (userSelectedIDs.length > 0) {
-  player1Cards = calculateCards(userSelectedIDs);
-  let p1FirstRow = p1Cards.filter(card => card.ability !== "3T Bonus").slice(0, maxCardsPerRow);
-  let p1SecondRow = p1Cards.filter(card => card.ability !== "3T Bonus").slice(maxCardsPerRow);
-  
-  let p1StartX = leftMargin + (leftSectionWidth - p1FirstRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
-  drawCards(p1FirstRow, p1StartX, middleLineY + 30, "#0093ff", cardSize, cardSpacing, textOffset);
-  
-  if (p1SecondRow.length > 0) {
-    let p1SecondStartX = leftMargin + (leftSectionWidth - p1SecondRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
-    drawCards(p1SecondRow, p1SecondStartX, middleLineY + 60 + cardSize + cardSpacing, "#0093ff", cardSize, cardSpacing, textOffset);
-  }
-}
+    if (userSelectedIDs.length > 0) {
+      player1Cards = calculateCards(userSelectedIDs);
+      let p1FirstRow = player1Cards
+        .filter((card) => card.ability !== "3T Bonus")
+        .slice(0, maxCardsPerRow);
+      let p1SecondRow = player1Cards
+        .filter((card) => card.ability !== "3T Bonus")
+        .slice(maxCardsPerRow);
+      let p1StartX =
+        leftMargin +
+        (leftSectionWidth - p1FirstRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
+      drawCards(p1FirstRow, p1StartX, middleLineY + 30, "#0093ff", cardSize, cardSpacing, textOffset);
+      if (p1SecondRow.length > 0) {
+        let p1SecondStartX =
+          leftMargin +
+          (leftSectionWidth - p1SecondRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
+        drawCards(
+          p1SecondRow,
+          p1SecondStartX,
+          middleLineY + 60 + cardSize + cardSpacing,
+          "#0093ff",
+          cardSize,
+          cardSpacing,
+          textOffset
+        );
+      }
+    }
 
-// Player 2 kartları (takımında kurt varsa çiz)
-if (opponentSelectedIDs.length > 0) {
-  player2Cards = calculateCards(opponentSelectedIDs);
-  let p2FirstRow = p2Cards.filter(card => card.ability !== "3T Bonus").slice(0, maxCardsPerRow);
-  let p2SecondRow = p2Cards.filter(card => card.ability !== "3T Bonus").slice(maxCardsPerRow);
-  
-  let p2StartX = leftMargin + (leftSectionWidth - p2FirstRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
-  drawCards(p2FirstRow, p2StartX, middleLineY - cardSize - 30, "#ff4c40", cardSize, cardSpacing, textOffset);
-  
-  if (p2SecondRow.length > 0) {
-    let p2SecondStartX = leftMargin + (leftSectionWidth - p2SecondRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
-    drawCards(p2SecondRow, p2SecondStartX, middleLineY - 2 * (cardSize + cardSpacing) - 60, "#ff4c40", cardSize, cardSpacing, textOffset);
-  }
-  }
-  }
-  
-   if (showEmptyPopup) {
-    drawEmptyPopup();
-  } 
-  
-  // Savaş mantığı
-  if (battleStarted) {
-    handleBattle();
+    if (opponentSelectedIDs.length > 0) {
+      player2Cards = calculateCards(opponentSelectedIDs);
+      let p2FirstRow = player2Cards
+        .filter((card) => card.ability !== "3T Bonus")
+        .slice(0, maxCardsPerRow);
+      let p2SecondRow = player2Cards
+        .filter((card) => card.ability !== "3T Bonus")
+        .slice(maxCardsPerRow);
+      let p2StartX =
+        leftMargin +
+        (leftSectionWidth - p2FirstRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
+      drawCards(p2FirstRow, p2StartX, middleLineY - cardSize - 30, "#ff4c40", cardSize, cardSpacing, textOffset);
+      if (p2SecondRow.length > 0) {
+        let p2SecondStartX =
+          leftMargin +
+          (leftSectionWidth - p2SecondRow.length * (cardSize + cardSpacing) + cardSpacing) / 2;
+        drawCards(
+          p2SecondRow,
+          p2SecondStartX,
+          middleLineY - 2 * (cardSize + cardSpacing) - 60,
+          "#ff4c40",
+          cardSize,
+          cardSpacing,
+          textOffset
+        );
+      }
+    }
   }
 
-  // Savaş sonucu gösterimi (ortaya kaydı)
+  if (showEmptyPopup) drawEmptyPopup();
+  if (battleStarted) handleBattle();
+
+  // Battle Result Display
   if (battleAnimationState === "end_round_2") {
     textSize(24);
     textAlign(CENTER);
     fill("#ffffff");
-    text(`Winner: ${winningTeam}`, 475, 170 + 250 / 2); // Orta yükseklik: 170 + 250/2
+    text(`Winner: ${winningTeam}`, 475, 170 + 250 / 2);
   }
 
-  // Input ve buton pozisyonları
-  const inputWidth = min(tableSectionWidth - 30, 180);
+  // Input Fields and Sorting
+  const inputWidth = Math.min(tableSectionWidth - 30, 180);
   const inputHeight = 25;
   const padding = 15;
   searchInput.size(inputWidth, inputHeight);
@@ -762,9 +848,7 @@ if (opponentSelectedIDs.length > 0) {
   columnSelect.size(inputWidth, inputHeight);
   columnSelect.position(tableSectionX + 10, tableSectionY + 30 + 2 * (inputHeight + padding) + 15);
 
-
-  
-  // Wolves Shown Metni
+  // Wolves Shown Text
   let filteredWolvesCount;
   const searchValue = searchInput.value().trim();
   const walletValue = walletInput.value().trim();
@@ -772,84 +856,62 @@ if (opponentSelectedIDs.length > 0) {
     filteredWolvesCount = wolfdata.filter((w) => parseInt(w.id) <= 7500).length;
   } else if (searchValue !== "") {
     filteredWolvesCount = wolfdata.some((w) => w.id === searchValue) ? 1 : 0;
-  } else if (walletValue !== "") {
-    filteredWolvesCount = nftIds.length;
   } else {
-    filteredWolvesCount = wolfdata.filter((w) => parseInt(w.id) <= 7500).length;
+    filteredWolvesCount = nftIds.length;
   }
-textSize(12);
-textStyle(NORMAL);
-fill("#e1e2e6");
-textAlign(CENTER);
-fill("#e1e2e6"); // Yazıyı açık renkte tutalım ki görünsün
-text(
-  `${filteredWolvesCount} ${filteredWolvesCount === 1 ? "wolf" : "wolves"} shown`,
-  tableSectionX + 100,
-  tableSectionY + 43 + 2 * (inputHeight + padding) + 15 + inputHeight + 5
-);
-  
-// Search Input için ✖ simgesi - Hover efekti (Merkez: 200, 110)
-if (searchInput.value().length > 0) {
-push();
-textSize(14);
-textStyle(NORMAL);
-// Sabitler (draw() ile uyumlu olmalı)
-const inputxButtonSize = 10; // Tıklanabilir alan boyutu (piksel cinsinden)
-// Search ✖ butonu için merkez koordinatları (sizin verdiğiniz: 200,110)
-const searchXButtonX = 200;
-const searchXButtonY = 110;
-// Wallet ✖ butonu için merkez koordinatları (sizin verdiğiniz: 200,150)
-const walletXButtonX = 200;
-const walletXButtonY = 150;
+  textSize(12);
+  textStyle(NORMAL);
+  fill("#e1e2e6");
+  textAlign(CENTER);
+  text(
+    `${filteredWolvesCount} ${filteredWolvesCount === 1 ? "wolf" : "wolves"} shown`,
+    tableSectionX + 100,
+    tableSectionY + 43 + 2 * (inputHeight + padding) + 15 + inputHeight + 5
+  );
 
-// Hover kontrolü (20x20 piksel alan)
-if (mouseX >= searchXButtonX - inputxButtonSize / 2 &&
-    mouseX <= searchXButtonX + inputxButtonSize / 2 &&
-    mouseY >= searchXButtonY - inputxButtonSize - 2  &&
-    mouseY <= searchXButtonY ) {
-  fill("#ff0000"); // Hover durumunda kırmızı
-  cursor(HAND);
-} else {
-  fill("#e1e2e6"); // Normal durumda açık gri
-}
+  // Search and Wallet Clear Buttons
+  const inputxButtonSize = 10;
+  if (searchInput.value().length > 0) {
+    push();
+    textSize(14);
+    textStyle(NORMAL);
+    if (
+      mouseX >= 200 - inputxButtonSize / 2 &&
+      mouseX <= 200 + inputxButtonSize / 2 &&
+      mouseY >= 110 - inputxButtonSize - 2 &&
+      mouseY <= 110
+    ) {
+      fill("#ff0000");
+      cursor(HAND);
+    } else {
+      fill("#e1e2e6");
+    }
+    textAlign(CENTER);
+    text("✖", 200, 110);
+    pop();
+  }
 
-textAlign(CENTER);
-text("✖", 200, 110); // Sabit koordinat
-pop();
-}
-  
-// Wallet Input için ✖ simgesi - Hover efekti (Merkez: 200, 150)
-if (walletInput.value().length > 0) {  
-push();
-textSize(14);
-textStyle(NORMAL);
-// Sabitler (draw() ile uyumlu olmalı)
-const inputxButtonSize = 10; // Tıklanabilir alan boyutu (piksel cinsinden)
-// Search ✖ butonu için merkez koordinatları (sizin verdiğiniz: 200,110)
-const searchXButtonX = 200;
-const searchXButtonY = 110;
-// Wallet ✖ butonu için merkez koordinatları (sizin verdiğiniz: 200,150)
-const walletXButtonX = 200;
-const walletXButtonY = 150;  
+  if (walletInput.value().length > 0) {
+    push();
+    textSize(14);
+    textStyle(NORMAL);
+    if (
+      mouseX >= 200 - inputxButtonSize / 2 &&
+      mouseX <= 200 + inputxButtonSize / 2 &&
+      mouseY >= 150 - inputxButtonSize - 2 &&
+      mouseY <= 150
+    ) {
+      fill("#ff0000");
+      cursor(HAND);
+    } else {
+      fill("#e1e2e6");
+    }
+    textAlign(CENTER);
+    text("✖", 200, 150);
+    pop();
+  }
 
-// Hover kontrolü (20x20 piksel alan)
-if (mouseX >= walletXButtonX - inputxButtonSize / 2 &&
-    mouseX <= walletXButtonX + inputxButtonSize / 2 &&
-    mouseY >= walletXButtonY - inputxButtonSize - 2  &&
-    mouseY <= walletXButtonY ) {
-  fill("#ff0000"); // Hover durumunda kırmızı
-  cursor(HAND);
-} else {
-  fill("#e1e2e6"); // Normal durumda açık gri
-}
-
-textAlign(CENTER);
-text("✖", 200, 150); // Sabit koordinat
-pop();
-}  
-  
-  
-  // Navigasyon Butonları
+  // Navigation Buttons
   const tableBottomY = tableSectionY + 150 + 7 * 75;
   const buttonWidth = 25;
   const buttonHeight = 20;
@@ -867,33 +929,93 @@ pop();
   lastPageButton.position(tableSectionX + 7 + 3 * (buttonWidth + buttonSpacing) + 80, tableBottomY + 85);
   lastPageButton.show();
 
-  const totalItems = sortedWolfdata.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const currentPageDisplay = currentPage + 1;
+  const totalPages = Math.ceil(sortedWolfdata.length / itemsPerPage);
   textSize(12);
   textStyle(NORMAL);
   fill("#e1e2e6");
   textAlign(CENTER);
   text(
-    `${currentPageDisplay} of ${totalPages}`,
+    `${currentPage + 1} of ${totalPages}`,
     tableSectionX + 20 + 2 * buttonWidth + 2 * buttonSpacing + 25,
     tableBottomY + 85 + buttonHeight / 2 + 5
   );
 
-  // Popup
+  // Rival Selection Section
+  const rivalSectionX = leftMargin + leftSectionWidth + 10;
+  const rivalSectionY = 60;
+  drawRivalSelectionTable(rivalSectionX, rivalSectionY);
+
+  searchInput.show();
+  walletInput.show();
+  columnSelect.show();  
+  
+  // Tüm popup'lar için ortak yarı saydam katman
+  if (showTeamPopup || showPopup || showSkillDetailsPopup || showTeamWolfPopup || battleResultPopup) {
+  push();
+  fill(0, 0, 0, 150);
+  rect(0, 0, canvasWidth, canvasHeight);
+  pop();
+ // DOM elemanlarının opacity’sini düşür
+    [
+      searchInput,
+      walletInput,
+      columnSelect,
+      player1Input,
+      player2Input,
+      firstPageButton,
+      prevPageButton,
+      nextPageButton,
+      lastPageButton,
+      rivalFirstPageButton,
+      rivalPrevPageButton,
+      rivalNextPageButton,
+      rivalLastPageButton,
+      playButton,
+    ].forEach((element) => {
+      if (element) element.style("opacity", "0.5");
+    });
+    
+    // Wolf selection popup butonlarının opacity’sini koru
+    if (showPopup) {
+      if (addToPlayer1Button) addToPlayer1Button.style("opacity", "1.0");
+      if (addToPlayer2Button) addToPlayer2Button.style("opacity", "1.0");
+    }
+  } else {
+    // Popup kapalıyken opacity’yi geri getir
+    [
+      searchInput,
+      walletInput,
+      columnSelect,
+      player1Input,
+      player2Input,
+      firstPageButton,
+      prevPageButton,
+      nextPageButton,
+      lastPageButton,
+      rivalFirstPageButton,
+      rivalPrevPageButton,
+      rivalNextPageButton,
+      rivalLastPageButton,
+      playButton,
+      addToPlayer1Button,
+      addToPlayer2Button,
+    ].forEach((element) => {
+      if (element) element.style("opacity", "1.0");
+    });
+  }  
+  
+  
+  // Wolf Selection Popup
   if (showPopup && selectedWolfId) {
     push();
-      const popupCenterX = width/2;
-        const popupX = width / 2 - 175;
-    const popupY = height / 2 - 105;
-  addToPlayer1Button.position(popupCenterX - 0, popupY + 160); // Ortalanmış pozisyon
-  addToPlayer2Button.position(popupCenterX + 10, popupY + 160);  // Ortalanmış pozisyon
-    fill(0, 0, 0, 150);
-    rect(0, 0, width, height);
+    const popupCenterX = canvasWidth/2;
+    const popupX = canvasWidth / 2 - 175;
+    const popupY = canvasHeight / 2 - 105;
+    //fill(0, 0, 0, 150);
+    //rect(0, 0, canvasWidth, canvasHeight);
     fill("#221f3e");
     stroke("#3f3973");
     strokeWeight(1);
-
     rect(popupX, popupY, 350, 210, 10);
     textSize(14);
     textStyle(BOLD);
@@ -922,7 +1044,6 @@ pop();
       let attackYOffset = popupY + 20;
       let defenseYOffset = popupY + 20;
 
-
       textSize(14);
       textStyle(NORMAL);
       fill("#e1e2e6");
@@ -932,17 +1053,13 @@ pop();
       attackYOffset += 20;
       defenseYOffset += 20;
 
-      
-
       const attackAbilities = ["Morale", "Money", "Sneak", "Rage", "Bloodlust", "3T Bonus"];
       attackAbilities.forEach((ability) => {
         const score = abilityScores[ability] || 0;
-        drawHealthBar(attackColX, attackYOffset, score, "#176fc3"); 
-
+        drawHealthBar(attackColX, attackYOffset, score, "#176fc3");
         textSize(12);
         textStyle(NORMAL);
-        fill("#ffffff"); 
-        noStroke();
+        fill("#ffffff");
         text(`${ability}: ${score}`, attackColX + 5, attackYOffset + 5);
         attackYOffset += 20;
       });
@@ -959,8 +1076,6 @@ pop();
 
     const xButtonX = popupX + 330;
     const xButtonY = popupY + 15;
-    pop();
-    push();
     textFont("Arial");
     fill(0);
     noStroke();
@@ -968,7 +1083,107 @@ pop();
     fill("#F5F5F5");
     textAlign(CENTER);
     text("✖", xButtonX, xButtonY + 5);
-    if (mouseX >= xButtonX - 10 && mouseX <= xButtonX + 10 && mouseY >= xButtonY - 10 && mouseY <= xButtonY + 10) {
+    if (
+      mouseX >= xButtonX - 10 &&
+      mouseX <= xButtonX + 10 &&
+      mouseY >= xButtonY - 10 &&
+      mouseY <= xButtonY + 10
+    ) {
+      fill(255, 0, 0);
+      ellipse(xButtonX, xButtonY, 20, 20);
+      fill("#FFFFFF");
+      text("✖", xButtonX, xButtonY + 5);
+    }
+  pop();
+
+  // Buton pozisyonlarını ayarla
+  addToPlayer1Button.position(popupX + 7, popupY + 163);
+  addToPlayer2Button.position(popupX + 7, popupY + 130);
+  }
+
+  // Team Wolf Popup çizdirme (draw)
+  if (showTeamWolfPopup && selectedTeamWolfId) {
+    push();
+    const popupX = canvasWidth / 2 - 175;
+    const popupY = canvasHeight / 2 - 105;
+    const xButtonX = popupX + 330;
+    const xButtonY = popupY + 15;
+    fill(0, 0, 0, 150);
+    rect(0, 0, canvasWidth, canvasHeight);
+    fill("#221f3e");
+    stroke("#3f3973");
+    strokeWeight(1);
+    rect(popupX, popupY, 350, 210, 10);
+    textSize(14);
+    textStyle(BOLD);
+    fill("#e1e2e6");
+    textAlign(LEFT);
+    text(`Wolf #${selectedTeamWolfId}`, popupX + 10, popupY + 20);
+
+    if (resizedImages[selectedTeamWolfId]) {
+      image(resizedImages[selectedTeamWolfId], popupX + 10, popupY + 30, 75, 75);
+    } else if (loadedImages[selectedTeamWolfId]) {
+      let img = loadedImages[selectedTeamWolfId];
+      let resized = createGraphics(75, 75);
+      resized.image(img, 0, 0, 75, 75);
+      resizedImages[selectedTeamWolfId] = resized;
+      image(resized, popupX + 10, popupY + 30, 75, 75);
+    }
+
+    const wolf = wolfdata.find((w) => w.id === selectedTeamWolfId);
+    if (wolf) {
+      const { abilityScores } = getWolfAbilities(wolf);
+      const has3T = has3TBonus(wolf);
+      if (has3T) abilityScores["3T Bonus"] = 9;
+
+      const attackColX = popupX + 100;
+      const defenseColX = popupX + 210;
+      let attackYOffset = popupY + 20;
+      let defenseYOffset = popupY + 20;
+
+      textSize(14);
+      textStyle(NORMAL);
+      fill("#e1e2e6");
+      text("Skills", attackColX + 80, attackYOffset);
+      text("Remove wolf?", 255, 453);
+      attackYOffset += 20;
+      defenseYOffset += 20;
+
+      const attackAbilities = ["Morale", "Money", "Sneak", "Rage", "Bloodlust", "3T Bonus"];
+      attackAbilities.forEach((ability) => {
+        const score = abilityScores[ability] || 0;
+        drawHealthBar(attackColX, attackYOffset, score, "#03A9F4");
+        textSize(12);
+        textStyle(NORMAL);
+        fill("#e1e2e6");
+        text(`${ability}: ${score}`, attackColX + 5, attackYOffset + 5);
+        attackYOffset += 20;
+      });
+
+      const defenseAbilities = ["Fear", "Cunning", "Perception", "Composure", "Badass"];
+      defenseAbilities.forEach((ability) => {
+        const score = abilityScores[ability] || 0;
+        drawHealthBar(defenseColX, defenseYOffset, score, "#03A9F4");
+        fill("#e1e2e6");
+        text(`${ability}: ${score}`, defenseColX + 5, defenseYOffset + 5);
+        defenseYOffset += 20;
+      });
+    }
+
+
+    textFont("Arial");
+    fill(0);
+    noStroke();
+    ellipse(xButtonX, xButtonY, 20, 20);
+    fill("#F5F5F5");
+    textAlign(CENTER);
+    text("✖", xButtonX, xButtonY + 5);
+    if (
+      mouseX >= xButtonX - 10 &&
+      mouseX <= xButtonX + 10 &&
+      mouseY >= xButtonY - 10 &&
+      mouseY <= xButtonY + 10
+    ) {
       fill(255, 0, 0);
       ellipse(xButtonX, xButtonY, 20, 20);
       fill("#FFFFFF");
@@ -976,423 +1191,265 @@ pop();
     }
     pop();
 
-    // add wolf butonlarının konumu
-    addToPlayer1Button.position(popupX + 7, popupY + 165);
-    addToPlayer2Button.position(popupX + 7, popupY + 130);
-    [searchInput,
-    walletInput,
-    columnSelect,
-    player1Input,
-    player2Input,
-    firstPageButton,
-    prevPageButton,
-    nextPageButton,
-    lastPageButton,
-    rivalFirstPageButton,
-    rivalPrevPageButton,
-    rivalNextPageButton,
-    rivalLastPageButton,
-    playButton].forEach((element) => {
-      if (element) element.style("opacity", "0.5");
-    });
-  } else {
-    [searchInput,
-    walletInput,
-    columnSelect,
-    player1Input,
-    player2Input,
-    firstPageButton,
-    prevPageButton,
-    nextPageButton,
-    lastPageButton,
-    rivalFirstPageButton,
-    rivalPrevPageButton,
-    rivalNextPageButton,
-    rivalLastPageButton,
-    playButton].forEach((element) => {
-      if (element) element.style("opacity", "1");
-    });
+    removeWolfButton.position(popupX + 7, popupY + 130);
+    keepWolfButton.position(popupX + 7, popupY + 165);
+    if (selectedTeamType === "opponent" && rivalPackTitle !== "Player 2") {
+      removeWolfButton.hide();
+      keepWolfButton.hide();
+    } else {
+      removeWolfButton.show();
+      keepWolfButton.show();
+    }   
   }
 
-// Team Wolf Popup
-if (showTeamWolfPopup && selectedTeamWolfId) {
-  push();
-  fill(0, 0, 0, 150);
-  rect(0, 0, width, height);
-  fill("#221f3e");
-  stroke("#3f3973");
-  strokeWeight(1);
-  const popupX = width / 2 - 175;
-  const popupY = height / 2 - 105;
-  rect(popupX, popupY, 350, 210, 10);
-  textSize(14);
-  textStyle(BOLD);
-  fill("#e1e2e6");
-  textAlign(LEFT);
-  text(`Wolf #${selectedTeamWolfId}`, popupX + 10, popupY + 20);
-
-  if (resizedImages[selectedTeamWolfId]) {
-    image(resizedImages[selectedTeamWolfId], popupX + 10, popupY + 30, 75, 75);
-  } else if (loadedImages[selectedTeamWolfId]) {
-    let img = loadedImages[selectedTeamWolfId];
-    let resized = createGraphics(75, 75);
-    resized.image(img, 0, 0, 75, 75);
-    resizedImages[selectedTeamWolfId] = resized;
-    image(resized, popupX + 10, popupY + 30, 75, 75);
-  }
-
-  const wolf = wolfdata.find((w) => w.id === selectedTeamWolfId);
-  if (wolf) {
-    const { abilityScores } = getWolfAbilities(wolf);
-    const has3T = has3TBonus(wolf);
-    if (has3T) abilityScores["3T Bonus"] = 9;
-
-    const attackColX = popupX + 100;
-    const defenseColX = popupX + 210;
-    let attackYOffset = popupY + 20;
-    let defenseYOffset = popupY + 20;
+  // Team Info Popup
+  if (showTeamPopup && selectedTeamIDs) {
+    push();
+    //fill(0, 0, 0, 150);
+    //rect(0, 0, canvasWidth, canvasHeight);
+    fill("#221f3e");
+    stroke("#3f3973");
+    strokeWeight(1);
+    const popupX = canvasWidth / 2 - 180;
+    const popupY = canvasHeight / 2 - 250;
+    rect(popupX, popupY, 360, 500, 10);
 
     textSize(14);
-    textStyle(BOLD);
-    fill("#e1e2e6");
-    text("Skills", attackColX + 80, attackYOffset);
-    attackYOffset += 20;
-    defenseYOffset += 20;
-
-    textSize(12);
     textStyle(NORMAL);
-    const attackAbilities = ["Morale", "Money", "Sneak", "Rage", "Bloodlust", "3T Bonus"];
-    attackAbilities.forEach((ability) => {
-      const score = abilityScores[ability] || 0;
-      drawHealthBar(attackColX, attackYOffset, score, "#03A9F4");
+    fill("#e1e2e6");
+    textAlign(CENTER);
+    const teamTitle = selectedTeamIDs === userSelectedIDs ? player1Name : rivalPackTitle;
+    text(`${teamTitle}'s Team Info`, popupX + 180, popupY + 20);
+
+    const selectedWolves = selectedTeamIDs
+      .map((id) => wolfdata.find((w) => w.id === id))
+      .filter((w) => w);
+    const abilityScores = getTeamAbilities(selectedWolves);
+    const numberOf3TWolves = selectedWolves.filter((wolf) => has3TBonus(wolf)).length;
+    abilityScores["3T Bonus"] =
+      numberOf3TWolves === 1 ? 9 : numberOf3TWolves === 2 ? 18 : numberOf3TWolves >= 3 ? 27 : 0;
+
+    const centerX = popupX + 180;
+    const centerY = popupY + 230;
+    const radius = 150;
+    const cardSize = 75;
+
+    skillOrder.forEach((skill, i) => {
+      const angle = (i * TWO_PI) / skillOrder.length - HALF_PI;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      const score = abilityScores[skill] || 0;
+
+      push();
+      drawingContext.save();
+      drawingContext.beginPath();
+      drawingContext.arc(x, y, cardSize / 3, 0, TWO_PI);
+      drawingContext.clip();
+      if (abilityImages[skill]) {
+        image(abilityImages[skill], x - cardSize / 2, y - cardSize / 2, cardSize, cardSize);
+      } else {
+        fill(50);
+        ellipse(x, y, cardSize, cardSize);
+      }
+      drawingContext.restore();
+      pop();
+
+      const nextSkill = skillOrder[(i + 1) % skillOrder.length];
+      const nextIndex = skillOrder.indexOf(nextSkill);
+      if (nextIndex !== -1) {
+        const nextAngle = (nextIndex * TWO_PI) / skillOrder.length - HALF_PI;
+        const nextX = centerX + radius * Math.cos(nextAngle);
+        const nextY = centerY + radius * Math.sin(nextAngle);
+        const dx = nextX - x;
+        const dy = nextY - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 0) {
+          const dirX = dx / distance;
+          const dirY = dy / distance;
+          const offset = cardSize / 2.2;
+          const startX = x + dirX * offset;
+          const startY = y + dirY * offset;
+          const endX = nextX - dirX * offset;
+          const endY = nextY - dirY * offset;
+
+          stroke(255);
+          strokeWeight(1.5);
+          line(startX, startY, endX, endY);
+
+          const arrowSize = 6;
+          const arrowAngle = Math.atan2(dy, dx);
+          push();
+          translate(endX, endY);
+          rotate(arrowAngle);
+          fill(255);
+          noStroke();
+          triangle(-arrowSize, -arrowSize / 2, -arrowSize, arrowSize / 2, 0, 0);
+          pop();
+        }
+      }
+
+      push();
+      textSize(16);
+      textFont("Trebuchet MS");
+      textStyle(BOLD);
       fill("#e1e2e6");
-      text(`${ability}: ${score}`, attackColX + 5, attackYOffset + 5);
-      attackYOffset += 20;
+      stroke(0);
+      strokeWeight(3);
+      textAlign(CENTER);
+      text(score, x, y - cardSize / 2 + 10);
+      pop();
+
+      push();
+      textSize(12);
+      textStyle(BOLD);
+      fill("#e1e2e6");
+      noStroke();
+      text(`${skill}`, x, y + cardSize / 2 - 5);
+      pop();
     });
 
-    const defenseAbilities = ["Fear", "Cunning", "Perception", "Composure", "Badass"];
-    defenseAbilities.forEach((ability) => {
-      const score = abilityScores[ability] || 0;
-      drawHealthBar(defenseColX, defenseYOffset, score, "#03A9F4");
-      fill("#e1e2e6");
-      text(`${ability}: ${score}`, defenseColX + 5, defenseYOffset + 5);
-      defenseYOffset += 20;
-    });
-  }
+    const centerCardSize = cardSize * 0.8;
+    const centerSpacing = 20;
 
-  const xButtonX = popupX + 330;
-  const xButtonY = popupY + 15;
-  pop();
-  push();
-  textFont("Arial");
-  fill(0);
-  noStroke();
-  ellipse(xButtonX, xButtonY, 20, 20);
-  fill("#F5F5F5");
-  textAlign(CENTER);
-  text("✖", xButtonX, xButtonY + 5);
-  if (mouseX >= xButtonX - 10 && mouseX <= xButtonX + 10 && mouseY >= xButtonY - 10 && mouseY <= xButtonY + 10) {
-    fill(255, 0, 0);
-    ellipse(xButtonX, xButtonY, 20, 20);
-    fill("#FFFFFF");
-    text("✖", xButtonX, xButtonY + 5);
-  }
-  pop();
-
-  // "Remove Wolf" butonunu yalnızca rivalPackTitle "Player 2" ise göster
-  removeWolfButton.position(popupX + 126, popupY + 170);
-  if (selectedTeamType === "opponent" && rivalPackTitle !== "Player 2") {
-    removeWolfButton.hide();
-  } else {
-    removeWolfButton.show();
-  }
-}
-  
-  
-// Takım Detay Popup'ı
-if (showTeamPopup && selectedTeamIDs) {
-  push();
-  fill(0, 0, 0, 150); // Yarı şeffaf arka plan
-  rect(0, 0, width, height);
-  fill("#221f3e"); // Popup arka plan rengi
-  stroke("#3f3973"); // Çerçeve rengi
-  strokeWeight(1);
-  const popupX = width / 2 - 180; // 360 genişlik için ortalanmış X
-  const popupY = height / 2 - 250; // 500 yükseklik için ortalanmış Y
-  rect(popupX, popupY, 360, 500, 10);
-
-// Başlık
-
-  textSize(14);
-  textStyle(NORMAL); // Fontun kendi bold hali kullanılacak
-  fill("#e1e2e6");
-  textAlign(CENTER);
-  // Player 1 için player1Name, Player 2 için rivalPackTitle kullan
-  const teamTitle = selectedTeamIDs === userSelectedIDs ? player1Name : rivalPackTitle;
-  text(`${teamTitle}'s Team Info`, popupX + 180, popupY + 20);
-
-  // Seçili takımın skill puanlarını hesapla
-  const selectedWolves = selectedTeamIDs.map(id => wolfdata.find(w => w.id === id)).filter(w => w);
-  const abilityScores = getTeamAbilities(selectedWolves); // Takımın skill puanları
-  const numberOf3TWolves = selectedWolves.filter(wolf => has3TBonus(wolf)).length;
-  abilityScores["3T Bonus"] = numberOf3TWolves === 1 ? 9 : numberOf3TWolves === 2 ? 18 : numberOf3TWolves >= 3 ? 27 : 0;
-
-  // Skill Çemberi
-  let centerX = popupX + 180; // Çemberin merkezi X
-  let centerY = popupY + 230; // Çemberin merkezi Y
-  let radius = 150; // Çemberin yarıçapı
-  const skillOrder = ["Morale", "Badass", "Bloodlust", "Composure", "Rage", "Perception", "Sneak", "Cunning", "Money", "Fear"];
-  const cardSize = 75; // Kart boyutu (daire çapı)
-
-  // Skill kartlarını ve okları çiz
-  for (let i = 0; i < skillOrder.length; i++) {
-    let angle = (i * TWO_PI) / skillOrder.length - HALF_PI; // Her skill için açı (üstten başlar)
-    let x = centerX + radius * cos(angle); // Skill kartı X koordinatı
-    let y = centerY + radius * sin(angle); // Skill kartı Y koordinatı
-
-    // Skill kartını çiz (daire şeklinde croplanmış)
-    let skill = skillOrder[i];
-    let score = abilityScores[skill] || 0; // Takımın bu skill'deki puanı
-    let colors = abilityColors[skill] || { text: "#FFFFFF", border: "#000000" };
-
-    // Kart arka planı (daire şeklinde)
+    const comboX = centerX - centerSpacing / 2 - 35 - centerCardSize / 2;
+    const comboY = centerY - 30;
     push();
     drawingContext.save();
     drawingContext.beginPath();
-    drawingContext.arc(x, y, cardSize / 3, 0, TWO_PI); // Daire maskesi
+    drawingContext.arc(
+      comboX + centerCardSize / 2,
+      comboY + centerCardSize / 2,
+      centerCardSize / 3,
+      0,
+      TWO_PI
+    );
     drawingContext.clip();
-
-    // Skill resmi (croplanmış)
-    if (abilityImages[skill]) {
-      image(abilityImages[skill], x - cardSize / 2, y - cardSize / 2, cardSize, cardSize);
+    if (comboImg) {
+      image(comboImg, comboX, comboY, centerCardSize, centerCardSize);
     } else {
-      // Resim yoksa placeholder
-      fill(50);
-      ellipse(x, y, cardSize, cardSize);
+      fill(100);
+      ellipse(comboX + centerCardSize / 2, comboY + centerCardSize / 2, centerCardSize, centerCardSize);
     }
-
     drawingContext.restore();
     pop();
 
-    // Ok çizimi
-    nextSkill = skillOrder[(i + 1) % skillOrder.length];
-    let nextIndex = skillOrder.indexOf(nextSkill);
-    if (nextIndex !== -1) {
-      let nextAngle = (nextIndex * TWO_PI) / skillOrder.length - HALF_PI;
-      let nextX = centerX + radius * cos(nextAngle);
-      let nextY = centerY + radius * sin(nextAngle);
-
-      // Yeni vektör hesaplama
-      let dx = nextX - x;
-      let dy = nextY - y;
-      let distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance > 0) {
-        let dirX = dx / distance;
-        let dirY = dy / distance;
-        let offset = cardSize / 2.2; // %10 daha kısa için
-        let startX = x + dirX * offset;
-        let startY = y + dirY * offset;
-        let endX = nextX - dirX * offset;
-        let endY = nextY - dirY * offset;
-
-        stroke(255);
-        strokeWeight(1.5);
-        line(startX, startY, endX, endY);
-
-        let arrowSize = 6;
-        let arrowAngle = atan2(dy, dx);
-        push();
-        translate(endX, endY);
-        rotate(arrowAngle);
-        fill(255);
-        noStroke();
-        triangle(-arrowSize, -arrowSize / 2, -arrowSize, arrowSize / 2, 0, 0);
-        pop();
-      }
-    }
-
-    // Üstte puan skill circle
+    const comboBonus = calculateTraitBonusScore(selectedWolves);
     push();
     textSize(16);
     textFont("Trebuchet MS");
     textStyle(BOLD);
-    fill("#e1e2e6"); // Siyah arka plan
-    stroke(0); // Beyaz çerçeve
-    strokeWeight(3);
+    fill("#e1e2e6");
+    stroke(0);
+    strokeWeight(1);
     textAlign(CENTER);
-    text(score, x, y - cardSize / 2 + 10); // Puanı dairenin üstüne yerleştir
+    text(`${comboBonus}`, comboX + centerCardSize / 2, comboY + 7);
     pop();
 
-    // Altta skill adı
     push();
     textSize(12);
     textStyle(BOLD);
-    fill("#e1e2e6"); // Beyaz yazı
+    fill("#e1e2e6");
     noStroke();
-    text(`${skill}`, x, y + cardSize / 2 - 5);
+    text("Trait Combos", comboX + centerCardSize / 2, comboY + centerCardSize - 3);
     pop();
-  }
 
-  // Ortadaki Combo ve 3T kartları
-  const centerCardSize = cardSize * 0.8; // %20 daha küçük
-  const centerSpacing = 20; // İki kart arası boşluk
+    const threeTX = centerX + centerSpacing / 2 - 15 + centerCardSize / 2;
+    const threeTY = centerY - 30;
+    push();
+    drawingContext.save();
+    drawingContext.beginPath();
+    drawingContext.arc(
+      threeTX + centerCardSize / 2,
+      threeTY + centerCardSize / 2,
+      centerCardSize / 3,
+      0,
+      TWO_PI
+    );
+    drawingContext.clip();
+    if (threeTImg) {
+      image(threeTImg, threeTX, threeTY, centerCardSize, centerCardSize);
+    } else {
+      fill(100);
+      ellipse(threeTX + centerCardSize / 2, threeTY + centerCardSize / 2, centerCardSize, centerCardSize);
+    }
+    drawingContext.restore();
+    pop();
 
-  // Sol taraf - Combo Kartı
-  const comboX = centerX - centerSpacing / 2 - 35 - centerCardSize / 2;
-  const comboY = centerY - 30;
+    const threeTBonus =
+      numberOf3TWolves === 1 ? 9 : numberOf3TWolves === 2 ? 18 : numberOf3TWolves >= 3 ? 27 : 0;
+    push();
+    textSize(16);
+    textFont("Trebuchet MS");
+    textStyle(BOLD);
+    fill("#e1e2e6");
+    stroke(0);
+    strokeWeight(1);
+    textAlign(CENTER);
+    text(`${threeTBonus}`, threeTX + centerCardSize / 2, threeTY + 7);
+    pop();
 
-  // Combo kart arka planı (daire şeklinde)
-  push();
-  drawingContext.save();
-  drawingContext.beginPath();
-  drawingContext.arc(comboX + centerCardSize / 2, comboY + centerCardSize / 2, centerCardSize / 3, 0, TWO_PI);
-  drawingContext.clip();
+    push();
+    textSize(12);
+    textStyle(BOLD);
+    fill("#e1e2e6");
+    noStroke();
+    text("3T Wolves", threeTX + centerCardSize / 2, threeTY + centerCardSize - 3);
+    pop();
 
-  // Combo resmi
-  if (comboImg) {
-    image(comboImg, comboX, comboY, centerCardSize, centerCardSize);
-  } else {
-    fill(100);
-    ellipse(comboX + centerCardSize / 2, comboY + centerCardSize / 2, centerCardSize, centerCardSize);
-  }
-
-  drawingContext.restore();
-  pop();
-
-  // Combo puanı (üstte)
-  const comboBonus = calculateTraitBonusScore(selectedWolves);
-  push();
-  textSize(16);
-  textFont("Trebuchet MS");
-  textStyle(BOLD);
-  fill("#e1e2e6"); // Siyah arka plan
-  stroke(0); // Beyaz çerçeve
-  strokeWeight(1);
-  textAlign(CENTER);
-  text(`${comboBonus}`, comboX + centerCardSize / 2, comboY + 7);
-  pop();
-
-  // "Combo Traits" yazısı (altta)
-  push();
-  textSize(12);
-  textStyle(BOLD);
-  fill("#e1e2e6"); // Beyaz yazı
-  noStroke();
-  text("Trait Combos", comboX + centerCardSize / 2, comboY + centerCardSize - 3);
-  pop();
-
-  // Sağ taraf - 3T Kartı
-  const threeTX = centerX + centerSpacing / 2 - 15 + centerCardSize / 2;
-  const threeTY = centerY - 30;
-
-  // 3T kart arka planı (daire şeklinde)
-  push();
-  drawingContext.save();
-  drawingContext.beginPath();
-  drawingContext.arc(threeTX + centerCardSize / 2, threeTY + centerCardSize / 2, centerCardSize / 3, 0, TWO_PI);
-  drawingContext.clip();
-
-  // 3T resmi
-  if (threeTImg) {
-    image(threeTImg, threeTX, threeTY, centerCardSize, centerCardSize);
-  } else {
-    fill(100);
-    ellipse(threeTX + centerCardSize / 2, threeTY + centerCardSize / 2, centerCardSize, centerCardSize);
-  }
-
-  drawingContext.restore();
-  pop();
-
-  // 3T Bonus puanı (üstte)
-  const threeTBonus = numberOf3TWolves === 1 ? 9 : 
-                     numberOf3TWolves === 2 ? 18 : 
-                     numberOf3TWolves >= 3 ? 27 : 0;
-  push();
-  textSize(16);
-  textFont("Trebuchet MS");
-  textStyle(BOLD);
-  fill("#e1e2e6"); // Siyah arka plan
-  stroke(0); // Beyaz çerçeve
-  strokeWeight(1);
-  textAlign(CENTER);
-  text(`${threeTBonus}`, threeTX + centerCardSize / 2, threeTY + 7);
-  pop();
-
-  // "Three Traits" yazısı (altta)
-  push();
-  textSize(12);
-  textStyle(BOLD);
-  fill("#e1e2e6"); // Beyaz yazı
-  noStroke();
-  text("3T Wolves", threeTX + centerCardSize / 2, threeTY + centerCardSize - 3);
-  pop();
-
-  // Açıklama metni (çemberin altında)
-  textSize(12);
-  textStyle(NORMAL);
-  fill("#e1e2e6");
-  textAlign(CENTER);
-  text("", popupX + 180, popupY + 430);
-
-  // Kapatma butonu (✖)
-  const xButtonX = popupX + 340;
-  const xButtonY = popupY + 15;
-  textFont("Arial");
-  fill(0);
-  noStroke();
-  ellipse(xButtonX, xButtonY, 20, 20);
-  fill("#F5F5F5");
-  textAlign(CENTER);
-  text("✖", xButtonX, xButtonY + 5);
-  if (
-    mouseX >= xButtonX - 10 &&
-    mouseX <= xButtonX + 10 &&
-    mouseY >= xButtonY - 10 &&
-    mouseY <= xButtonY + 10
-  ) {
-    fill(255, 0, 0);
-    ellipse(xButtonX, xButtonY, 20, 20);
-    fill("#FFFFFF");
-    text("✖", xButtonX, xButtonY + 5);
-  }
-
-  
+    push();
     textSize(12);
     textStyle(NORMAL);
     fill("#e1e2e6");
+    noStroke();
     textAlign(LEFT);
-    const infoStartY = popupY + 440; // Popup'un alt kısmına yakın
+    const infoStartY = popupY + 440;
     text("• Each skill blocks another (e.g. Perception blocks Sneak)", popupX + 10, infoStartY + 10);
-    text("• +2 bonus for 2 same traits, +3 bonus for triple", popupX + 10, infoStartY + 25);
-    text("• +9 bonus per 3T wolf (wolves with only 3 traits)", popupX + 10, infoStartY + 40);  
-  
-  
-  
-  pop();
-}
+    text("• 2 bonus for 2 same traits, 3 bonus for triple", popupX + 10, infoStartY + 25);
+    text("• 9 bonus per 3T wolf (wolves with only 3 traits)", popupX + 10, infoStartY + 40);
+    pop();
+    
+    const xButtonX = popupX + 340;
+    const xButtonY = popupY + 15;
+    textFont("Arial");
+    fill(0);
+    noStroke();
+    ellipse(xButtonX, xButtonY, 20, 20);
+    fill("#F5F5F5");
+    textAlign(CENTER);
+    text("✖", xButtonX, xButtonY + 5);
+    if (
+      mouseX >= xButtonX - 10 &&
+      mouseX <= xButtonX + 10 &&
+      mouseY >= xButtonY - 10 &&
+      mouseY <= xButtonY + 10
+    ) {
+      fill(255, 0, 0);
+      ellipse(xButtonX, xButtonY, 20, 20);
+      fill("#FFFFFF");
+      text("✖", xButtonX, xButtonY + 5);
+    }
+    
+    if (showSkillDetailsPopup) {
+    drawSkillDetailsPopup();
+    }
+    pop();
+  }
 
-  // Rival Selection Bölümü
-  const rivalSectionX = leftMargin + leftSectionWidth + 10;
-  const rivalSectionY = 60;
-  drawRivalSelectionTable(rivalSectionX, rivalSectionY);
 
-  searchInput.show();
-  walletInput.show();
-  columnSelect.show();
 
-    // Sea Wolves GIF gösterimi
+  // Sea Wolves GIF
   if (showSeaGif) {
     const elapsed = millis() - gifStartTime;
     if (elapsed < gifDuration) {
       imageMode(CENTER);
-      image(seaGif, width/2, height/2, 400, 400);
+      image(seaGif, canvasWidth / 2, canvasHeight / 2, 400, 400);
       imageMode(CORNER);
     } else {
       showSeaGif = false;
     }
-  }  
- 
-// Tüm çizimlerin sonunda bilgi kutucuğunu çiz
+  }
+
+  // Info Box
   if (showInfoBox) {
     push();
     fill("#221f3e");
@@ -1402,11 +1459,8 @@ if (showTeamPopup && selectedTeamIDs) {
     const boxHeight = 20;
     let boxX = infoBoxX - boxWidth / 2;
     let boxY = infoBoxY - boxHeight - 10;
-
-    // Ekran sınırları içinde tut
-    boxX = constrain(boxX, 0, width - boxWidth);
-    boxY = constrain(boxY, 0, height - boxHeight);
-
+    boxX = constrain(boxX, 0, canvasWidth - boxWidth);
+    boxY = constrain(boxY, 0, canvasHeight - boxHeight);
     rect(boxX, boxY, boxWidth, boxHeight, 5);
     textSize(12);
     textStyle(NORMAL);
@@ -1420,8 +1474,8 @@ if (showTeamPopup && selectedTeamIDs) {
 // Yardımcı fonksiyonlar
 function drawEmptyPopup() {
   push();
-  fill(0, 0, 0, 150); // Yarı şeffaf arka plan
-  rect(0, 0, width, height);
+  //fill(0, 0, 0, 150); // Yarı şeffaf arka plan
+  //rect(0, 0, canvasWidth, canvasHeight);
   
   // Popup kutusu
   fill("#221f3e");
@@ -1429,8 +1483,8 @@ function drawEmptyPopup() {
   strokeWeight(1);
   const popupWidth = 300;
   const popupHeight = 200;
-  const popupX = width / 2 - popupWidth / 2;
-  const popupY = height / 2 - popupHeight / 2;
+  const popupX = canvasWidth / 2 - popupWidth / 2;
+  const popupY = canvasHeight / 2 - popupHeight / 2;
   rect(popupX, popupY, popupWidth, popupHeight, 10);
 
   // Popup başlığı
@@ -1504,17 +1558,17 @@ function drawCards(cards, xStart, yStart, teamColor, cardSize, cardSpacing, text
 
     // Çerçeve
     push();
-    stroke("#64636d");
-    strokeWeight(5);
+    stroke(displayTeamColor);
+    strokeWeight(4);
     noFill();
-    rect(xPos + 5, yStart + 3, cardSize - 10, cardSize - 3, 3);
+    rect(xPos + 5, yStart + 0, cardSize - 10, cardSize - 0, 3);
     pop();
 
     if (img) {
       let clipX = floor(xPos + 5);
-      let clipY = floor(yStart + 3);
+      let clipY = floor(yStart + 0);
       let clipW = cardSize - 10; // 65
-      let clipH = cardSize - 3;  // 72
+      let clipH = cardSize - 0;  // 72
 
       let drawX = floor(clipX + (clipW - img.width) / 2);
       let drawY = floor(clipY + (clipH - img.height) / 2);
@@ -1531,13 +1585,14 @@ function drawCards(cards, xStart, yStart, teamColor, cardSize, cardSpacing, text
 
     // PUAN üstte
     push();
-    textSize(20);
+    textSize(14);
     textFont("Trebuchet MS");
     textStyle(BOLD);
-    fill(displayTeamColor);
-    noStroke();
-    textAlign(CENTER);
-    text(`${card.score}`, xPos + cardSize / 2, yStart - textOffset + 13);
+    fill(0);
+    stroke("#e1e2e6");
+    strokeWeight(2);
+    textAlign(RIGHT);
+    text(`${card.score}`, xPos + cardSize / 2 + 30, yStart - textOffset + 27);
     pop();
 
     push();
@@ -2191,7 +2246,7 @@ if (progress >= 0.45 && progress <= 0.55 && !window.clashTriggered) {
     if (flashAlpha > 0) {
       fill(255, 255, 255, flashAlpha);
       noStroke();
-      rect(0, 0, width, height);
+      rect(0, 0, canvasWidth, canvasHeight);
       flashAlpha -= 5;
     }
 
@@ -2367,19 +2422,23 @@ function saveOriginalPositions() {
 // drawSingleCard fonksiyonunu da güncelle
 function drawSingleCard(card, x, y, teamColor) {
   if (!card || card.ability === "3T Bonus" || x === undefined || y === undefined) return;
+  let displayTeamColor = teamColor === "#0093ff" ? "#0093ff" : "#ff4c40";
   
   push();
   // Kart gölgesi
   fill(0, 0, 0, 50);
   noStroke();
   rect(x + 7, y + 10, CARD_SIZE, CARD_SIZE, 5);
+  pop();
   
   // Kart gövdesi (orijinal stile dönüş)
+  push();
   noFill();
-  stroke("#64636d");
+  stroke(displayTeamColor);
   strokeWeight(5);
   rect(x + 5, y + 3, CARD_SIZE - 10, CARD_SIZE - 3, 5);
-
+  pop();
+  
   // Ability resmi (orijinal clip stili)
   if (abilityImages[card.ability]) {
     push();
@@ -2394,13 +2453,14 @@ function drawSingleCard(card, x, y, teamColor) {
   
   // Puan üstte (animasyon için)
     push();
-  textSize(20);
-  textFont("Trebuchet MS");
-  textStyle(BOLD);
-  fill(teamColor === "#0093ff" ? "#0093ff" : "#ff4c40");
-  noStroke();
-  textAlign(CENTER);
-  text(`${card.score}`, x + CARD_SIZE/2, y - 2); // Üstte orijinal pozisyon
+    textSize(14);
+    textFont("Trebuchet MS");
+    textStyle(BOLD);
+    fill(0);
+    stroke("#e1e2e6");
+    strokeWeight(2);
+    textAlign(RIGHT);
+  text(`${card.score}`, x + CARD_SIZE/2 + 30, y + 12); // Üstte orijinal pozisyon
     pop();
   
   // Ability adı (orijinal stil)
@@ -2412,7 +2472,7 @@ function drawSingleCard(card, x, y, teamColor) {
   fill(colors.text);
   stroke(colors.border);
   strokeWeight(5);
-  text(card.ability.toUpperCase(), x + CARD_SIZE/2, y + CARD_SIZE + 15); // Altta orijinal pozisyon
+  text(card.ability.toUpperCase(), x + CARD_SIZE/2, y + CARD_SIZE + 3); // Altta orijinal pozisyon
   noStroke();
   pop();
 }
@@ -2536,19 +2596,103 @@ function mousePressed() {
   const rowHeight = 80;
   const tableStartY = tableSectionY + 150 + 45;
 
-  // Önce tablo kontrolü
+  // Team Wolf Popup kapatma
+  if (showTeamWolfPopup) {
+    const popupX = canvasWidth / 2 - 175;
+    const popupY = canvasHeight / 2 - 105;
+    const xButtonX = popupX + 330;
+    const xButtonY = popupY + 15;
+    const xButtonSize = 20;
+    if (
+      mouseX >= xButtonX - xButtonSize / 2 &&
+      mouseX <= xButtonX + xButtonSize / 2 &&
+      mouseY >= xButtonY - xButtonSize / 2 &&
+      mouseY <= xButtonY + xButtonSize / 2
+    ) {
+      console.log("Team Wolf Popup kapatılıyor");
+      closeTeamWolfPopup();
+      return;
+    }
+  }
+
+  // Skill Details Popup kapatma (öncelikli olarak kontrol ediliyor)
+  if (showSkillDetailsPopup) {
+    const popupX = canvasWidth / 2 - 180;
+    const popupY = canvasHeight / 2 - 250;
+    const xButtonX = popupX + 340; // Popup genişliği 360 varsayımıyla
+    const xButtonY = popupY + 15;
+    const xButtonSize = 20;
+    if (
+      mouseX >= xButtonX - xButtonSize / 2 &&
+      mouseX <= xButtonX + xButtonSize / 2 &&
+      mouseY >= xButtonY - xButtonSize / 2 &&
+      mouseY <= xButtonY + xButtonSize / 2
+    ) {
+      showSkillDetailsPopup = false;
+      selectedSkill = null;
+      skillDetails = [];
+      return;
+    }
+  }
+
+  // Team Info Popup ve Skill Tıklama Kontrolü
+  if (showTeamPopup && !showSkillDetailsPopup) {
+    const teamPopupX = canvasWidth / 2 - 180;
+    const teamPopupY = canvasHeight / 2 - 250;
+    const xButtonX = teamPopupX + 340; // Popup genişliği 360 varsayımıyla
+    const xButtonY = teamPopupY + 15;
+    const xButtonSize = 20;
+
+    // Team Info Popup kapatma butonu
+    if (
+      mouseX >= xButtonX - xButtonSize / 2 &&
+      mouseX <= xButtonX + xButtonSize / 2 &&
+      mouseY >= xButtonY - xButtonSize / 2 &&
+      mouseY <= xButtonY + xButtonSize / 2
+    ) {
+      showTeamPopup = false;
+      selectedTeamIDs = null;
+      console.log("Team Info Popup kapatılıyor");
+      return;
+    }
+
+    // Skill resimleri tıklama kontrolü
+    const centerX = teamPopupX + 180;
+    const centerY = teamPopupY + 230;
+    const radius = 150;
+    const cardSize = 75;
+
+    skillOrder.forEach((skill, i) => {
+      const angle = (i * TWO_PI) / skillOrder.length - HALF_PI;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      const left = x - cardSize / 2;
+      const top = y - cardSize / 2;
+      const right = x + cardSize / 2;
+      const bottom = y + cardSize / 2;
+
+      if (mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= bottom) {
+        selectedSkill = skill;
+        skillTraits = getAllTraitsForSkill(skill);
+        showSkillDetailsPopup = true;
+      }
+    });
+  }
+
+  // Wolf Selection Table Click Detection
   if (
     mouseX >= tableSectionX &&
     mouseX <= tableSectionX + tableWidth &&
     mouseY >= tableStartY &&
     mouseY <= tableStartY + itemsPerPage * rowHeight
   ) {
-    console.log("Tablo içinde tıklama tespit edildi.");
-    console.log("Mouse koordinatları:", mouseX, mouseY);
+    console.log("Table click detected.");
+    console.log("Mouse coordinates:", mouseX, mouseY);
     console.log("tableStartY:", tableStartY);
-    const rowIndex = floor((mouseY - tableStartY) / rowHeight);
-    console.log("Hesaplanan rowIndex:", rowIndex);
+    const rowIndex = Math.floor((mouseY - tableStartY) / rowHeight);
+    console.log("Calculated rowIndex:", rowIndex);
     const startIndex = currentPage * itemsPerPage;
+
     let sortedWolfdata = wolfdata
       .filter((w) => parseInt(w.id) <= 7500)
       .filter((w) => searchFilter === "" || w.id === searchFilter)
@@ -2574,90 +2718,81 @@ function mousePressed() {
     }
     const pageData = sortedWolfdata.slice(
       startIndex,
-      min(startIndex + itemsPerPage, sortedWolfdata.length)
+      Math.min(startIndex + itemsPerPage, sortedWolfdata.length)
     );
     console.log("pageData:", pageData);
+
     if (rowIndex >= 0 && rowIndex < pageData.length) {
       const wolf = pageData[rowIndex];
-      console.log("Seçilen kurt:", wolf.id);
+      console.log("Selected wolf:", wolf.id);
       showPopup = true;
       selectedWolfId = wolf.id;
-      const popupX = width / 2 - 100;
-      const popupY = height / 2 - 75;
-      addToPlayer1Button.position(popupX + 70, popupY + 90);
+      const popupX = canvasWidth / 2 - 175;
+      const popupY = canvasHeight / 2 - 105;
+      addToPlayer1Button.position(popupX + 7, popupY + 165);
       addToPlayer1Button.show();
-      addToPlayer2Button.position(popupX + 70, popupY + 120);
+      addToPlayer2Button.position(popupX + 157, popupY + 165);
       addToPlayer2Button.show();
       return;
     } else {
-      console.log("Hata: rowIndex geçersiz veya pageData boş.");
+      console.log("Error: Invalid rowIndex or empty pageData.");
     }
   } else {
-    console.log("mouseX, mouseY:", mouseX, mouseY);
+    console.log("Mouse coordinates outside table:", mouseX, mouseY);
   }
 
-  const leftMargin = 10 + 200 + 10;
-  // Takım detay kutusu kontrolü (Team Info)
-  const teamInfoX = 62; // drawTeamSection'daki teamInfoX ile eşleşiyor
-  const teamInfoY = 25; // drawTeamSection'daki teamInfoY ile eşleşiyor
-  const teamInfoWidth = 75 - 10; // Box genişliği (boxWidth - padding)
-  const teamInfoHeight = 75 - 3; // Box yüksekliği (drawTeamSection'daki yükseklik)
-  // Rival Pack Team Info butonunun GERÇEK konumunu kontrol et
-  const rivalTeamInfoX = leftMargin + 23; // drawTeamSection'daki teamInfoX (23) + leftMargin
-  const rivalTeamInfoY = 60 + 25; // drawTeamSection'daki yPos (60) + teamInfoY (25)
-  const rivalTeamInfoWidth = 75 - 10; // boxWidth - padding
-  const rivalTeamInfoHeight = 75 - 3; // boxHeight - padding  
+  const leftMargin = tableSectionX + tableWidth + 10;
 
-// Player 1 Team Info tıklama kontrolü (WC Logo)
-const p1SectionX = 220; // leftMargin değeri
-const p1SectionY = 665; // 305 + 240 + 120
-const p1WcImgX = p1SectionX + 23 + 13; // xPos + teamInfoX + offset
-const p1WcImgY = p1SectionY + 25 + 12; // yPos + teamInfoY + offset
-const wcImgWidth = 50;
-const wcImgHeight = 46;
-
-if (
-  mouseX >= p1WcImgX && 
-  mouseX <= p1WcImgX + wcImgWidth &&
-  mouseY >= p1WcImgY && 
-  mouseY <= p1WcImgY + wcImgHeight
-) {
-  console.log("Your Pack Team Info tıklandı!");
-  showTeamPopup = true;
-  selectedTeamIDs = userSelectedIDs;
-  return;
-}
-
-if (
+  // Team Info Click Detection
+  const rivalTeamInfoX = leftMargin + 23;
+  const rivalTeamInfoY = 60 + 25;
+  const teamInfoWidth = 65;
+  const teamInfoHeight = 72;
+  if (
     mouseX >= rivalTeamInfoX &&
-    mouseX <= rivalTeamInfoX + rivalTeamInfoWidth &&
+    mouseX <= rivalTeamInfoX + teamInfoWidth &&
     mouseY >= rivalTeamInfoY &&
-    mouseY <= rivalTeamInfoY + rivalTeamInfoHeight
-) {
-  console.log("Rival Pack Team Info GERÇEK tıklama alanında!");
-  showTeamPopup = true;
-  selectedTeamIDs = opponentSelectedIDs;
-  return; // Diğer kontrolleri atla
-}
+    mouseY <= rivalTeamInfoY + teamInfoHeight
+  ) {
+    console.log("Rival Pack Team Info clicked!");
+    showTeamPopup = true;
+    selectedTeamIDs = opponentSelectedIDs;
+    return;
+  }
 
-   // Wolf Capital tıklama
-    if (mouseX >= 450 && mouseX <= 540 && mouseY >= 25 && mouseY <= 40) {
+  const p1SectionX = leftMargin;
+  const p1SectionY = 305 + 240 + 120;
+  const p1WcImgX = p1SectionX + 23 + 13;
+  const p1WcImgY = p1SectionY + 25 + 12;
+  const wcImgWidth = 50;
+  const wcImgHeight = 46;
+  if (
+    mouseX >= p1WcImgX &&
+    mouseX <= p1WcImgX + wcImgWidth &&
+    mouseY >= p1WcImgY &&
+    mouseY <= p1WcImgY + wcImgHeight
+  ) {
+    console.log("Your Pack Team Info clicked!");
+    showTeamPopup = true;
+    selectedTeamIDs = userSelectedIDs;
+    return;
+  }
+
+  // Wolf Capital Link Click
+  if (mouseX >= 450 && mouseX <= 540 && mouseY >= 25 && mouseY <= 40) {
     window.open("https://www.tensor.trade/trade/wolf_capital", "_blank");
     return;
   }
-  
-  
-  // Popup açıkken sadece popup ile ilgili kontroller çalışsın
+
+  // Popup Controls
   if (showPopup) {
-    const popupX = width / 2 - 175;
-    const popupY = height / 2 - 100;
+    const popupX = canvasWidth / 2 - 175;
+    const popupY = canvasHeight / 2 - 105;
     const popupWidth = 350;
     const xButtonX = popupX + popupWidth - 20;
     const xButtonY = popupY + 15;
     const xButtonSize = 20;
-      const popupCenterX = width/2;
-  const buttonY = popupY + 160;
-    
+
     if (
       mouseX >= xButtonX - xButtonSize / 2 &&
       mouseX <= xButtonX + xButtonSize / 2 &&
@@ -2668,43 +2803,40 @@ if (
       return;
     }
 
-    const addButtonX1 = popupX + 70;
-    const addButtonY1 = popupY + 90;
-    const addButtonX2 = popupX + 70;
-    const addButtonY2 = popupY + 120;
-    const buttonWidth = addToPlayer1Button.width;
-    const buttonHeight = addToPlayer1Button.height;
-
-  // P1 Buton tıklama alanı
-  if (mouseX >= popupCenterX - 150 && 
-      mouseX <= popupCenterX - 150 + 140 &&
-      mouseY >= buttonY && 
-      mouseY <= buttonY + 40) {
-    addToPlayer1Button.elt.click();
-    return;
+    const buttonY = popupY + 165;
+    if (
+      mouseX >= popupX + 7 &&
+      mouseX <= popupX + 7 + 140 &&
+      mouseY >= buttonY &&
+      mouseY <= buttonY + 40
+    ) {
+      addToPlayer1Button.elt.click();
+      return;
+    }
+    if (
+      mouseX >= popupX + 157 &&
+      mouseX <= popupX + 157 + 140 &&
+      mouseY >= buttonY &&
+      mouseY <= buttonY + 40
+    ) {
+      addToPlayer2Button.elt.click();
+      return;
+    }
   }
 
-  // P2 Buton tıklama alanı
-  if (mouseX >= popupCenterX + 10 && 
-      mouseX <= popupCenterX + 10 + 140 &&
-      mouseY >= buttonY && 
-      mouseY <= buttonY + 40) {
-    addToPlayer2Button.elt.click();
-    return;
-  }
-  }
-  
-// P1 kurtlarına tıklama kontrolü (Player 1)
+  // Player 1 Wolves Click Detection
   p1WolfPositions.forEach((pos) => {
-    const globalX = leftMargin + pos.x; // Global X koordinatı
-    const globalY = 305 + 240 + 120 + pos.y; // Global Y koordinatı (P1'in Y pozisyonu)
+    const globalX = leftMargin + pos.x;
+    const globalY = p1SectionY + pos.y;
     if (
       mouseX >= globalX &&
       mouseX <= globalX + pos.width &&
       mouseY >= globalY &&
       mouseY <= globalY + pos.height
     ) {
-      console.log(`P1 kurtuna tıklandı: ${pos.id}`); // Hata ayıklama için
+      console.log(
+        `P1 wolf clicked: ${pos.id}, Area: (${globalX}, ${globalY}) - (${globalX + pos.width}, ${globalY + pos.height})`
+      );
       showTeamWolfPopup = true;
       selectedTeamWolfId = pos.id;
       selectedTeamType = "user";
@@ -2712,17 +2844,19 @@ if (
     }
   });
 
-  // P2 kurtlarına tıklama kontrolü (Rival Pack)
+  // Player 2 Wolves Click Detection
   p2WolfPositions.forEach((pos) => {
-    const globalX = leftMargin + pos.x; // Global X koordinatı
-    const globalY = 60 + pos.y; // Global Y koordinatı (P2'nin Y pozisyonu)
+    const globalX = leftMargin + pos.x;
+    const globalY = 60 + pos.y;
     if (
       mouseX >= globalX &&
       mouseX <= globalX + pos.width &&
       mouseY >= globalY &&
       mouseY <= globalY + pos.height
     ) {
-      console.log(`P2 kurtuna tıklandı: ${pos.id}`); // Hata ayıklama için
+      console.log(
+        `P2 wolf clicked: ${pos.id}, Area: (${globalX}, ${globalY}) - (${globalX + pos.width}, ${globalY + pos.height})`
+      );
       showTeamWolfPopup = true;
       selectedTeamWolfId = pos.id;
       selectedTeamType = "opponent";
@@ -2730,108 +2864,51 @@ if (
     }
   });
 
-  // Popup kapatma kontrolü
-  if (showTeamWolfPopup) {
-    const popupX = width / 2 - 175;
-    const popupY = height / 2 - 105;
-    const xButtonX = popupX + 330;
-    const xButtonY = popupY + 15;
-    if (
-      mouseX >= xButtonX - 10 &&
-      mouseX <= xButtonX + 10 &&
-      mouseY >= xButtonY - 10 &&
-      mouseY <= xButtonY + 10
-    ) {
-      closeTeamWolfPopup();
-      return;
-    }
-
-    const removeButtonX = popupX + 126;
-    const removeButtonY = popupY + 160;
-    const buttonWidth = removeWolfButton.width;
-    const buttonHeight = removeWolfButton.height;
-    if (
-      mouseX >= removeButtonX &&
-      mouseX <= removeButtonX + buttonWidth &&
-      mouseY >= removeButtonY &&
-      mouseY <= removeButtonY + buttonHeight
-    ) {
-      removeWolfButton.elt.click();
-    }
+  // Team Reset Buttons
+  const xButtonSize = 20;
+  const yourPackXButtonX = leftMargin + leftSectionWidth - 30;
+  const yourPackXButtonY = p1SectionY + 15;
+  if (
+    mouseX >= yourPackXButtonX - xButtonSize / 2 &&
+    mouseX <= yourPackXButtonX + xButtonSize / 2 &&
+    mouseY >= yourPackXButtonY - xButtonSize / 2 &&
+    mouseY <= yourPackXButtonY + xButtonSize / 2
+  ) {
+    userSelectedIDs = [];
+    player1Team = [];
+    updateEndTurnButtonStyle();
+    if (removeSound) removeSound.play();
+    console.log("Your Pack reset");
     return;
   }
-  
-  
-// Takım detay popup kapatma
-if (showTeamPopup) {
-    const popupX = width / 2 - 180; // drawTeamPopup ile aynı hesaplama
-    const popupY = height / 2 - 250; // drawTeamPopup ile aynı hesaplama
-    const xButtonX = popupX + 340; // drawTeamPopup ile aynı
-    const xButtonY = popupY + 15;   // drawTeamPopup ile aynı
-    const xButtonSize = 20;        // Çap 20, yani yarıçap 10
+
+  const rivalPackXButtonX = leftMargin + leftSectionWidth - 30;
+  const rivalPackXButtonY = 60 + 15;
   if (
-      mouseX >= xButtonX - xButtonSize / 2 &&
-      mouseX <= xButtonX + xButtonSize / 2 &&
-      mouseY >= xButtonY - xButtonSize / 2 &&
-      mouseY <= xButtonY + xButtonSize / 2
-    ) {
-      showTeamPopup = false;
-      selectedTeamIDs = null;
+    mouseX >= rivalPackXButtonX - xButtonSize / 2 &&
+    mouseX <= rivalPackXButtonX + xButtonSize / 2 &&
+    mouseY >= rivalPackXButtonY - xButtonSize / 2 &&
+    mouseY <= rivalPackXButtonY + xButtonSize / 2
+  ) {
+    opponentSelectedIDs = [];
+    player2Team = [];
+    opponentTeamInitialized = false;
+    if (rivalPackTitle !== "Player 2") {
+      rivalPackTitle = "Player 2";
+      selectedRivalTeam = "Player 2";
     }
-    return; // Popup açıkken diğer kontrolleri atla
+    updateEndTurnButtonStyle();
+    if (removeSound) removeSound.play();
+    console.log("Rival Pack reset and renamed to 'Player 2'");
+    return;
   }
 
-// Your Pack ve Rival Pack için ✖ simgesi kontrolü
-const yourPackX = leftMargin; // 220
-const yourPackY = 305 + 240 + 120; // P1'in Y pozisyonu = 665
-const xButtonX = yourPackX + leftSectionWidth - 30; // 220 + 400 - 30 = 590
-const xButtonY = yourPackY + 15; // 665 + 15 = 680
-const xButtonSize = 20;
-const rivalPackX = leftMargin;
-const rivalPackY = 60;
-const yourPackXButtonX = yourPackX + leftSectionWidth - 30;
-const yourPackXButtonY = yourPackY + 15;
-const rivalPackXButtonX = rivalPackX + leftSectionWidth - 30;
-const rivalPackXButtonY = rivalPackY + 15;
-
-if (
-  mouseX >= yourPackXButtonX - xButtonSize / 2 &&
-  mouseX <= yourPackXButtonX + xButtonSize / 2 &&
-  mouseY >= yourPackXButtonY - xButtonSize / 2 &&
-  mouseY <= yourPackXButtonY + xButtonSize / 2
-) {
-  userSelectedIDs = [];
-  player1Team = [];
-  updateEndTurnButtonStyle();
-  if (removeSound) removeSound.play();
-  console.log("Your Pack GERÇEKTEN X'le sıfırlandı");
-}
-
-if (
-  mouseX >= rivalPackXButtonX - xButtonSize / 2 &&
-  mouseX <= rivalPackXButtonX + xButtonSize / 2 &&
-  mouseY >= rivalPackXButtonY - xButtonSize / 2 &&
-  mouseY <= rivalPackXButtonY + xButtonSize / 2
-) {
-  opponentSelectedIDs = [];
-  player2Team = [];
-  opponentTeamInitialized = false;
-  if (rivalPackTitle !== "Player 2") {
-    rivalPackTitle = "Player 2"; // Rival Team ismini "Player 2" yap
-    selectedRivalTeam = "Player 2"; // Varsayılan takım seçimi de "Player 2" olsun
-  }
-  updateEndTurnButtonStyle();
-  if (removeSound) removeSound.play();
-  console.log("Rival Pack sıfırlandı ve isim 'Player 2' olarak güncellendi");
-}
-
-  // Savaş sonucu popup kapatma
+  // Battle Result Popup Close
   if (battleResultPopup) {
     const popupX = leftMargin + leftSectionWidth / 2 - 100;
     const popupY = 250 + 75 - 50;
     const xButtonX = popupX + 200 - 20;
     const xButtonY = popupY + 15;
-    const xButtonSize = 20;
     if (
       mouseX >= xButtonX - xButtonSize / 2 &&
       mouseX <= xButtonX + xButtonSize / 2 &&
@@ -2840,89 +2917,84 @@ if (
     ) {
       battleResultPopup = false;
       winningTeam = null;
+      return;
     }
   }
-  
-// Rival Selection kontrolü
+
+  // Rival Selection Table Click
   const rivalSectionX = leftMargin + leftSectionWidth + 10;
   const rivalSectionY = 60;
   if (
     mouseX >= rivalSectionX &&
     mouseX <= rivalSectionX + 200 &&
     mouseY >= rivalSectionY + 30 &&
-    mouseY <= rivalSectionY + 30 + rivalItemsPerPage * 80 // Pagination'a göre sınır
+    mouseY <= rivalSectionY + 30 + rivalItemsPerPage * 80
   ) {
-    const rowIndex = floor((mouseY - (rivalSectionY + 30)) / 80);
+    const rowIndex = Math.floor((mouseY - (rivalSectionY + 30)) / 80);
     const absoluteIndex = rivalCurrentPage * rivalItemsPerPage + rowIndex;
     if (absoluteIndex >= 0 && absoluteIndex < rivalTeams.length) {
       const team = rivalTeams[absoluteIndex];
-      const defeatedTeamsCount = rivalTeams.filter(t => t.eliminatedBy !== null && t.name !== "Player 2").length;
-      const isRoyalWolvesDefeated = rivalTeams.some(t => t.name === "Royal Wolves" && t.eliminatedBy !== null);
+      const defeatedTeamsCount = rivalTeams.filter(
+        (t) => t.eliminatedBy !== null && t.name !== "Player 2"
+      ).length;
+      const isRoyalWolvesDefeated = rivalTeams.some(
+        (t) => t.name === "Royal Wolves" && t.eliminatedBy !== null
+      );
       const isRoyalWolves = team.name === "Royal Wolves";
       const isIceWolves = team.name === "Ice Wolves";
-      const isSelectable = (!isRoyalWolves || defeatedTeamsCount >= 6) && (!isIceWolves || isRoyalWolvesDefeated);
+      const isSelectable =
+        (!isRoyalWolves || defeatedTeamsCount >= 6) &&
+        (!isIceWolves || isRoyalWolvesDefeated);
 
       if (isSelectable) {
-        //if (team.name === "Sea Wolves") {showSeaGif = true; gifStartTime = millis();}
         selectedRivalTeam = team.name;
         opponentSelectedIDs = team.ids.slice();
         rivalPackTitle = team.name;
         loadOpponentImages(opponentSelectedIDs);
         updateEndTurnButtonStyle();
         if (selectSound) selectSound.play();
-        console.log(`Seçilen takım: ${rivalPackTitle}, IDs: ${opponentSelectedIDs}`);
+        console.log(`Selected team: ${rivalPackTitle}, IDs: ${opponentSelectedIDs}`);
       }
     }
+    return;
   }
-  
-// Search ve Wallet Input için ✖ simgesi tıklama kontrolü
-// Sabitler (draw() ile uyumlu olmalı)
-const inputxButtonSize = 10; // Tıklanabilir alan boyutu (piksel cinsinden)
 
-// Search ✖ butonu için merkez koordinatları (sizin verdiğiniz: 200,110)
-const searchXButtonX = 200;
-const searchXButtonY = 110;
-
-// Wallet ✖ butonu için merkez koordinatları (sizin verdiğiniz: 200,150)
-const walletXButtonX = 200;
-const walletXButtonY = 150;
-
-// Search ✖ tıklama kontrolü
-if (
-  mouseX >= searchXButtonX - inputxButtonSize / 2 &&
+  // Search and Wallet Input Clear Buttons
+  const inputxButtonSize = 10;
+  const searchXButtonX = 200;
+  const searchXButtonY = 110;
+  if (
+    mouseX >= searchXButtonX - inputxButtonSize / 2 &&
     mouseX <= searchXButtonX + inputxButtonSize / 2 &&
-    mouseY >= searchXButtonY - inputxButtonSize - 2  &&
-    mouseY <= searchXButtonY &&
-  mouseIsPressed // Sadece tıklanırsa
-) {
-  searchInput.value("");
-  searchFilter = "";
-  nftIds = [];
-  currentPage = 0;
-  tableCacheDirty = true;
-  drawWolfDataTableToBuffer();
-  console.log("Search input temizlendi");
-}
+    mouseY >= searchXButtonY - inputxButtonSize - 2 &&
+    mouseY <= searchXButtonY
+  ) {
+    searchInput.value("");
+    searchFilter = "";
+    nftIds = [];
+    currentPage = 0;
+    tableCacheDirty = true;
+    drawWolfDataTableToBuffer();
+    console.log("Search input cleared");
+    return;
+  }
 
-// Wallet ✖ tıklama kontrolü
-if (
-  mouseX >= walletXButtonX - inputxButtonSize / 2 &&
+  const walletXButtonX = 200;
+  const walletXButtonY = 150;
+  if (
+    mouseX >= walletXButtonX - inputxButtonSize / 2 &&
     mouseX <= walletXButtonX + inputxButtonSize / 2 &&
-    mouseY >= walletXButtonY - inputxButtonSize - 2  &&
-    mouseY <= walletXButtonY &&
-  mouseIsPressed // Sadece tıklanırsa
-) {
-  walletInput.value("");
-  nftIds = [];
-  currentPage = 0;
-  tableCacheDirty = true;
-  drawWolfDataTableToBuffer();
-  console.log("Wallet input temizlendi");
-}
-  
-  
-  
-  
+    mouseY >= walletXButtonY - inputxButtonSize - 2 &&
+    mouseY <= walletXButtonY
+  ) {
+    walletInput.value("");
+    nftIds = [];
+    currentPage = 0;
+    tableCacheDirty = true;
+    drawWolfDataTableToBuffer();
+    console.log("Wallet input cleared");
+    return;
+  }
 }
 
 // Klavye girdisi
@@ -3178,6 +3250,138 @@ function drawWolfDataTableToBuffer(tableSectionX) {
 function mouseMoved() {
   let isOverClickableArea = false;
 
+  // Team Wolf Popup tıklama alanı (mouseMoved)
+ if (showTeamWolfPopup) {
+  const popupX = canvasWidth / 2 - 175;
+  const popupY = canvasHeight / 2 - 105;
+  const xButtonX = popupX + 330;
+  const xButtonY = popupY + 15;
+  const xButtonSize = 20;
+  if (
+    mouseX >= xButtonX - xButtonSize / 2 &&
+    mouseX <= xButtonX + xButtonSize / 2 &&
+    mouseY >= xButtonY - xButtonSize / 2 &&
+    mouseY <= xButtonY + xButtonSize / 2
+  ) {
+    isOverClickableArea = true;  // Tıklanabilir alanda olduğumuzu belirt
+  }
+}
+
+  // Team Info Popup tıklama alanı (mouseMoved)
+  if (showTeamPopup) {
+  const popupX = canvasWidth / 2 - 180;
+  const popupY = canvasHeight / 2 - 250;
+  const xButtonX = popupX + 340;
+  const xButtonY = popupY + 15;
+  const xButtonSize = 20;
+  if (
+    mouseX >= xButtonX - xButtonSize / 2 &&
+    mouseX <= xButtonX + xButtonSize / 2 &&
+    mouseY >= xButtonY - xButtonSize / 2 &&
+    mouseY <= xButtonY + xButtonSize / 2
+  ) {
+    isOverClickableArea = true;
+  }
+}
+
+// Takım sıfırlama tıklama alanı (mouseMoved)
+  const leftMargin = 10 + 200 + 10; // tableSectionX + tableWidth + 10
+  const xButtonSize = 20;
+  // Player 1 (Your Pack) sıfırlama butonu
+  const p1SectionY = 305 + 240 + 120;
+  const yourPackXButtonX = leftMargin + leftSectionWidth - 30;
+  const yourPackXButtonY = p1SectionY + 15;
+  if (
+    mouseX >= yourPackXButtonX - xButtonSize / 2 &&
+    mouseX <= yourPackXButtonX + xButtonSize / 2 &&
+    mouseY >= yourPackXButtonY - xButtonSize / 2 &&
+    mouseY <= yourPackXButtonY + xButtonSize / 2 &&
+    userSelectedIDs.length > 0 // Buton yalnızca takımda wolf varsa görünür
+  ) {
+    isOverClickableArea = true;
+  }
+  // Player 2 (Rival Pack) sıfırlama butonu
+  const rivalPackXButtonX = leftMargin + leftSectionWidth - 30;
+  const rivalPackXButtonY = 60 + 15;
+  if (
+    mouseX >= rivalPackXButtonX - xButtonSize / 2 &&
+    mouseX <= rivalPackXButtonX + xButtonSize / 2 &&
+    mouseY >= rivalPackXButtonY - xButtonSize / 2 &&
+    mouseY <= rivalPackXButtonY + xButtonSize / 2 &&
+    opponentSelectedIDs.length > 0 // Buton yalnızca takımda wolf varsa görünür
+  ) {
+    isOverClickableArea = true;
+  }  
+  
+  // Player 1 Takımındaki kurtlar tıklama alanı (mouseMoved)
+  p1WolfPositions.forEach((pos) => {
+    const globalX = leftMargin + pos.x;
+    const globalY = p1SectionY + pos.y;
+    if (
+      mouseX >= globalX &&
+      mouseX <= globalX + pos.width &&
+      mouseY >= globalY &&
+      mouseY <= globalY + pos.height
+    ) {
+      isOverClickableArea = true;
+    }
+  });
+
+  // Player 2 Takımındaki kurtlar tıklama alanı (mouseMoved)
+  p2WolfPositions.forEach((pos) => {
+    const globalX = leftMargin + pos.x;
+    const globalY = 60 + pos.y;
+    if (
+      mouseX >= globalX &&
+      mouseX <= globalX + pos.width &&
+      mouseY >= globalY &&
+      mouseY <= globalY + pos.height
+    ) {
+      isOverClickableArea = true;
+    }
+  });
+
+  // Wolf Capital bağlantısı tıklama alanı (mouseMoved)
+  if (
+    mouseX >= 450 &&
+    mouseX <= 540 &&
+    mouseY >= 25 &&
+    mouseY <= 40
+  ) {
+    isOverClickableArea = true;
+  }  
+
+  // Rival Team Info (wcred) tıklama alanı (mouseMoved)
+  const rivalTeamInfoX = leftMargin + 23;
+  const rivalTeamInfoY = 60 + 25;
+  const teamInfoWidth = 65;
+  const teamInfoHeight = 72;
+  if (
+    mouseX >= rivalTeamInfoX &&
+    mouseX <= rivalTeamInfoX + teamInfoWidth &&
+    mouseY >= rivalTeamInfoY &&
+    mouseY <= rivalTeamInfoY + teamInfoHeight
+  ) {
+    isOverClickableArea = true;
+  }
+
+  // Your Team Info (wcblue) tıklama alanı (mouseMoved)
+  const p1SectionX = leftMargin;
+  //const p1SectionY = 305 + 240 + 120;
+  const p1WcImgX = p1SectionX + 23 + 13;
+  const p1WcImgY = p1SectionY + 25 + 12;
+  const wcImgWidth = 50;
+  const wcImgHeight = 46;
+  if (
+    mouseX >= p1WcImgX &&
+    mouseX <= p1WcImgX + wcImgWidth &&
+    mouseY >= p1WcImgY &&
+    mouseY <= p1WcImgY + wcImgHeight
+  ) {
+    isOverClickableArea = true;
+  }  
+  
+  
   // Wolf Selection kontrolü (değişmedi)
   const tableSectionX = 10;
   const tableSectionY = 60;
@@ -3427,18 +3631,16 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
   textAlign(LEFT);
   text(title, 22, 20);
 
-// Takım sıfırlama butonu (✖)
+  // Takım sıfırlama butonu (✖)
   if (selectedIDs.length > 0) {
     const xButtonX = sectionWidth - 30;
     const xButtonY = 15;
     const xButtonSize = 20;
 
-    // Global koordinatlar
     const globalX = xPos + xButtonX;
     const globalY = yPos + xButtonY;
 
-    // Hover kontrolü
-    const isOver = 
+    const isOver =
       mouseX >= globalX - xButtonSize / 2 &&
       mouseX <= globalX + xButtonSize / 2 &&
       mouseY >= globalY - xButtonSize / 2 &&
@@ -3447,56 +3649,70 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
     push();
     textFont("Arial");
     if (isOver) {
-      fill(255, 0, 0); // Hover durumunda kırmızı
+      fill(255, 0, 0);
     } else {
-      fill(0); // Normal durumda siyah
+      fill(0);
     }
     noStroke();
     ellipse(xButtonX, xButtonY, xButtonSize, xButtonSize);
-    fill(isOver ? "#FFFFFF" : "#F5F5F5"); // Hoverda beyaz, normalde açık gri
+    fill(isOver ? "#FFFFFF" : "#F5F5F5");
     textAlign(CENTER);
     text("✖", xButtonX, xButtonY + 5);
     pop();
   }
 
-  // WC Logo koordinatları
-  const wcImgX = 23 + 13; // teamInfoX + offset
-  const wcImgY = 25 + 12; // teamInfoY + offset
-  const wcImgWidth = 50;
-  const wcImgHeight = 46;
+// Takım logosu (wcblue veya wcred)
+  let wcImgX = 23 + 13; // 36
+  let wcImgY = 25 + 12; // 37
+  let wcImgWidth = 50;
+  let wcImgHeight = 46;
 
-  // WC Logosu
+  // Global koordinatlar (parlama için)
+  const globalX = xPos + wcImgX;
+  const globalY = yPos + wcImgY;
+
+  // Fare resmin üzerinde mi?
+  const isOverWcImg =
+    mouseX >= globalX &&
+    mouseX <= globalX + wcImgWidth &&
+    mouseY >= globalY &&
+    mouseY <= globalY + wcImgHeight;
+
+  push();
+  // Parlama efekti
+  if (isOverWcImg) {
+    drawingContext.shadowBlur = 10;
+    drawingContext.shadowColor = "rgba(255, 255, 255, 0.8)";
+    fill(255, 255, 255, 50);
+  }
+  // Resmi çiz (eski yöntemle)
   if (selectedIDs === userSelectedIDs && wcBlueImg) {
     image(wcBlueImg, wcImgX, wcImgY, wcImgWidth, wcImgHeight);
   } else if (selectedIDs === opponentSelectedIDs && wcRedImg) {
     image(wcRedImg, wcImgX, wcImgY, wcImgWidth, wcImgHeight);
   }
-
+  drawingContext.shadowBlur = 0;
+  pop();
+  
   // Puan hesaplamaları
   const selectedWolves = selectedIDs.map(id => wolfdata.find(w => w.id === id)).filter(w => w);
-  
-  // Base puanları hesapla (3T bonus hariç)
   let baseTotalPoints = 0;
   selectedWolves.forEach(wolf => {
     const { totalPoints } = calculateWolfPoints(wolf);
     baseTotalPoints += totalPoints;
   });
 
-  // 3T Bonus hesapla (1 kurt = +9, 2 kurt = +18, 3 kurt = +27)
   const threeTCount = selectedWolves.filter(wolf => has3TBonus(wolf)).length;
   const threeTBonus = threeTCount * 9;
 
-  // Trait Bonus hesapla
   const traitBonuses = calculateTraitBonuses(selectedWolves);
   let totalTraitBonus = 0;
   selectedWolves.forEach(wolf => {
     totalTraitBonus += getWolfTraitBonuses(wolf, traitBonuses);
   });
 
-  // Toplam bonus (3T + Trait)
   const totalBonus = threeTBonus + totalTraitBonus;
 
-  // Puan gösterimi (base + bonus)
   if (selectedIDs.length > 0) {
     push();
     textSize(12);
@@ -3509,23 +3725,22 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
     pop();
   }
 
-  // Kurt resimleri ve bonus göstergeleri
+  // Kurt resimleri ve pozisyonlar
   const boxWidth = 75;
   const spacing = -5;
   for (let i = 0; i < 3; i++) {
     let imgX = 23 + boxWidth + spacing + i * (boxWidth + spacing);
     let imgY = 25;
-    
+
     if (i < selectedIDs.length && loadedImages[selectedIDs[i]]) {
       wolfPositions.push({
         id: selectedIDs[i],
         x: imgX,
         y: imgY,
-        width: boxWidth,
-        height: 75
+        width: boxWidth,  // width olarak güncellendi
+        height: 75       // height olarak güncellendi
       });
 
-      // Kurt resmi
       push();
       drawingContext.save();
       drawingContext.beginPath();
@@ -3534,51 +3749,39 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
       image(loadedImages[selectedIDs[i]], imgX, imgY, boxWidth, 75);
       drawingContext.restore();
 
-      // Bonus göstergeleri
-      const wolf = selectedWolves[i];
-      if (wolf) {
-        // 3T Bonus (sağ üst)
-        if (has3TBonus(wolf)) {
-          push();
-          textSize(14);
-          textFont("Trebuchet MS");
-          textStyle(BOLD);
-          fill(0);
-          stroke(255);
-          strokeWeight(2);
-          textAlign(RIGHT, TOP);
-          text("9", imgX + boxWidth - 10, imgY + 5);
-          pop();
-        }
+    const wolf = selectedWolves[i];
+    if (wolf) {
+      // Toplam bonusu hesapla
+      const traitBonus = getWolfTraitBonuses(wolf, traitBonuses);
+      const threeTBonus = has3TBonus(wolf) ? 9 : 0;
+      const totalBonus = traitBonus + threeTBonus;
 
-        // Trait Bonus (sol üst)
-        const traitBonus = getWolfTraitBonuses(wolf, traitBonuses);
-        if (traitBonus > 0) {
-          push();
-          textSize(14);
-          textFont("Trebuchet MS");
-          textStyle(BOLD);
-          fill(0);
-          stroke(255);
-          strokeWeight(2);
-          textAlign(LEFT, TOP);
-          text(traitBonus.toString(), imgX + 10, imgY + 5);
-          pop();
-        }
+      // Toplam bonusu sağ üst köşede göster (eğer 0'dan büyükse)
+      if (totalBonus > 0) {
+        push();
+        textSize(14);
+        textFont("Trebuchet MS");
+        textStyle(BOLD);
+        fill(0);
+        stroke(255);
+        strokeWeight(2);
+        textAlign(RIGHT, TOP);
+        text(totalBonus.toString(), imgX + boxWidth - 7, imgY + 5);
+        pop();
       }
-      pop();
-    } else {
-      // Boş yuva
-      push();
-      drawingContext.save();
-      drawingContext.beginPath();
-      drawingContext.roundRect(imgX + 5, imgY + 3, boxWidth - 10, 75 - 3, 5);
-      drawingContext.clip();
-      image(emptyImg, imgX, imgY, boxWidth, 75);
-      drawingContext.restore();
-      pop();
     }
+    pop();
+  } else {
+    push();
+    drawingContext.save();
+    drawingContext.beginPath();
+    drawingContext.roundRect(imgX + 5, imgY + 3, boxWidth - 10, 75 - 3, 5);
+    drawingContext.clip();
+    image(emptyImg, imgX, imgY, boxWidth, 75);
+    drawingContext.restore();
+    pop();
   }
+}
 
   // Net atak kutusu
   const netAttackBoxX = 23 + 4 * (boxWidth + spacing);
@@ -3587,7 +3790,6 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
   noStroke();
   rect(netAttackBoxX + 5, netAttackBoxY + 3, boxWidth - 10, 75 - 3, 5);
 
-  // Net atak değeri
   const netAttackValue = selectedIDs === userSelectedIDs ? netAttackP1 : netAttackP2;
   textSize(30);
   textStyle(BOLD);
@@ -3785,7 +3987,145 @@ function getWolfAbilities(wolf) {
   return { abilities, abilityScores };
 }
 
-//function calculateComboBonuses(wolves) {}
+
+function getAllTraitsForSkill(skill) {
+  let traits = [];
+  for (const [category, traitsData] of Object.entries(traitAbilities)) {
+    for (const [trait, data] of Object.entries(traitsData)) {
+      if (data.ability === skill) {
+        traits.push(`${category}: ${trait} (+${data.score})`);
+      }
+    }
+  }
+  // Sort alphabetically for consistent display
+  return traits.sort();
+}
+function drawSkillDetailsPopup() {
+  push();
+  //fill(0, 0, 0, 150);
+  //rect(0, 0, canvasWidth, canvasHeight);
+  const popupX = canvasWidth / 2 - 180;
+  const popupY = canvasHeight / 2 - 250;
+  const popupWidth = 360;
+  const popupHeight = 500;
+  fill("#221f3e");
+  stroke("#3f3973");
+  strokeWeight(1);
+  rect(popupX, popupY, popupWidth, popupHeight, 10);
+
+// Skill kartını çiz
+  const cardSize = 75;
+  const textOffset = 15;
+  const teamColor = "#3f3973"; // Nötr renk (Your Pack mavisi)
+  const xPos = popupX + (popupWidth - cardSize) / 2; // Ortala
+  const yStart = popupY + 20; // Üstten boşluk
+  
+  let img = abilityImages[selectedSkill];
+  let colors = abilityColors[selectedSkill] || { text: "#ffffff", border: teamColor };
+  let displayTeamColor = teamColor;
+
+  // Çerçeve
+  push();
+  stroke(displayTeamColor);
+  strokeWeight(4);
+  noFill();
+  rect(xPos + 5, yStart, cardSize - 10, cardSize, 3);
+  pop();
+
+  if (img) {
+    let clipX = floor(xPos + 5);
+    let clipY = floor(yStart);
+    let clipW = cardSize - 10;
+    let clipH = cardSize;
+
+    let drawX = floor(clipX + (clipW - img.width) / 2);
+    let drawY = floor(clipY + (clipH - img.height) / 2);
+
+    push();
+    drawingContext.save();
+    drawingContext.beginPath();
+    drawingContext.roundRect(clipX, clipY, clipW, clipH, 3);
+    drawingContext.clip();
+    image(img, drawX, drawY, img.width, img.height);
+    drawingContext.restore();
+    pop();
+  }
+
+  // Skill adı (altta)
+  push();
+  textSize(13);
+  textFont("Trebuchet MS");
+  textStyle(BOLD);
+  fill(colors.text);
+  stroke(colors.border);
+  strokeWeight(3);
+  textAlign(CENTER);
+  text(selectedSkill.toUpperCase(), xPos + cardSize / 2, yStart + cardSize + textOffset - 12);
+  noStroke();
+  pop();  
+  
+  // Bloklama bilgisi
+  textSize(14);
+  textStyle(NORMAL);
+  fill("#e1e2e6");
+  textAlign(CENTER);
+  const blockInfo = skillBlockRules[selectedSkill] || { blocks: "None", blockedBy: "None" };
+  text(
+    `${selectedSkill} blocks ${blockInfo.blocks}`,
+    popupX + popupWidth / 2,
+    popupY + 120
+  );
+  text(
+    `and becomes blocked by ${blockInfo.blockedBy}`,
+    popupX + popupWidth / 2,
+    popupY + 135  // Bir alt satır için Y pozisyonunu artırın
+  );
+  
+  // Başlık
+  textSize(16);
+  textStyle(BOLD);
+  fill("#e1e2e6");
+  textAlign(CENTER);
+  text(`Traits contributing to ${selectedSkill}`, popupX + popupWidth / 2, popupY + 165);
+  
+  let yOffset = popupY + 185;
+  if (skillTraits.length === 0) {
+    textSize(14);
+    textStyle(NORMAL);
+    textAlign(CENTER);
+    fill("#e1e2e6");
+    text("No traits contribute to this skill.", popupX + popupWidth / 2, yOffset);
+  } else {
+    skillTraits.forEach(trait => {
+      textSize(12);
+      textStyle(NORMAL);
+      fill("#e1e2e6");
+      textAlign(CENTER);
+      text(trait, popupX + 180, yOffset);
+      yOffset += 15;
+    });
+  }
+  
+  const xButtonX = popupX + popupWidth - 20;
+  const xButtonY = popupY + 15;
+  textFont("Arial");
+  if (
+    mouseX >= xButtonX - 10 &&
+    mouseX <= xButtonX + 10 &&
+    mouseY >= xButtonY - 10 &&
+    mouseY <= xButtonY + 10
+  ) {
+    fill(255, 0, 0);
+  } else {
+    fill(0);
+  }
+  noStroke();
+  ellipse(xButtonX, xButtonY, 20, 20);
+  fill("#F5F5F5");
+  textAlign(CENTER);
+  text("✖", xButtonX, xButtonY + 5);
+  pop();
+}
 
 function toggleSelection(wolf, mode) {
   const targetArray = mode === "user" ? userSelectedIDs : opponentSelectedIDs;
@@ -3915,12 +4255,12 @@ function positionButton(btn, x, y) {
     console.error("positionButton: btn is undefined or not a p5 element", btn);
     return;
   }
-  let canvasX = (windowWidth - width) / 2;
+  let canvasX = (windowWidth - canvasWidth) / 2;
   btn.position(canvasX + x, y);
 }
 
 function repositionElements() {
-  let canvasX = (windowWidth - width) / 2;
+  let canvasX = (windowWidth - canvasWidth) / 2;
   console.log("Repositioning elements, canvasX:", canvasX);
 
   if (nextPageButton)
@@ -3935,7 +4275,7 @@ function updateCanvasPosition() {
     console.warn("updateCanvasPosition: Canvas not found");
     return;
   }
-  let x = (windowWidth - width) / 2;
+  let x = (windowWidth - canvasWidth) / 2;
   let y = 0;
   cnv.style("position", "absolute");
   cnv.style("left", x + "px");
