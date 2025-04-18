@@ -186,15 +186,15 @@ let endTurnButtonY = 200; // End Turn butonunun Y pozisyonu
 let showNoDefendersMessage = false; // Mesaj kontrolü
 let noDefendersMessageTimer = 0; // Mesaj zamanlayıcısı
 let rivalTeams = [
-  { name: "Player 2", imgId: "empty", ids: [], eliminatedBy: null },
-  { name: "McWolves", imgId: "mc1", ids: ["mc1", "mc2", "mc3"], eliminatedBy: null },
-  { name: "Street Wolves", imgId: "street1", ids: ["street1", "street2", "street3"], eliminatedBy: null },   
-  { name: "Sea Wolves", imgId: "sea1", ids: ["sea1", "sea2", "sea3"], eliminatedBy: null },
-  { name: "Mountain Wolves", imgId: "mountain1", ids: ["mountain1", "mountain2", "mountain3"], eliminatedBy: null },
-  { name: "Fire Wolves", imgId: "fire1", ids: ["fire1", "fire2", "fire3"], eliminatedBy: null },
-  { name: "Cyber Wolves", imgId: "cyber1", ids: ["cyber1", "cyber2", "cyber3"], eliminatedBy: null }, 
-  { name: "Royal Wolves", imgId: "royal1", ids: ["royal1", "royal2", "royal3"], eliminatedBy: null },
-  { name: "Ice Wolves", imgId: "ice1", ids: ["ice1", "ice2", "ice3"], eliminatedBy: null },
+  { name: "Player 2", imgId: "empty", ids: [], eliminatedBy: null, hiScore: 0 },
+  { name: "McWolves", imgId: "mc1", ids: ["mc1", "mc2", "mc3"], eliminatedBy: null, hiScore: 0 },
+  { name: "Street Wolves", imgId: "street1", ids: ["street1", "street2", "street3"], eliminatedBy: null, hiScore: 0 },
+  { name: "Sea Wolves", imgId: "sea1", ids: ["sea1", "sea2", "sea3"], eliminatedBy: null, hiScore: 0 },
+  { name: "Mountain Wolves", imgId: "mountain1", ids: ["mountain1", "mountain2", "mountain3"], eliminatedBy: null, hiScore: 0 },
+  { name: "Fire Wolves", imgId: "fire1", ids: ["fire1", "fire2", "fire3"], eliminatedBy: null, hiScore: 0 },
+  { name: "Cyber Wolves", imgId: "cyber1", ids: ["cyber1", "cyber2", "cyber3"], eliminatedBy: null, hiScore: 0 },
+  { name: "Royal Wolves", imgId: "royal1", ids: ["royal1", "royal2", "royal3"], eliminatedBy: null, hiScore: 0 },
+  { name: "Ice Wolves", imgId: "ice1", ids: ["ice1", "ice2", "ice3"], eliminatedBy: null, hiScore: 0 },
 ];
 let selectedRivalTeam = "Player 2"; // Varsayılan olarak Player 2 seçili
 const middleHeight = 247.5;
@@ -3803,6 +3803,16 @@ function drawTeamSection(selectedIDs, xPos, yPos, title, bgColor, sectionWidth) 
   textAlign(CENTER);
   text(netAttackValue.toString(), netAttackBoxX + boxWidth/2, netAttackBoxY + 50);
 
+  // Total HI SCORE gösterimi (sadece Player 1 için)
+  if (selectedIDs === userSelectedIDs) {
+    const totalHiScore = calculateTotalHiScore();
+    textSize(14);
+    textStyle(NORMAL);
+    fill("#ffffff");
+    textAlign(CENTER);
+    text(`HI SCORE: ${totalHiScore}`, netAttackBoxX + boxWidth/2, netAttackBoxY + 75 + 20);
+  }  
+  
   pop();
 
   return wolfPositions;
@@ -3877,7 +3887,7 @@ function calculateBattleResult(userIDs, opponentIDs) {
   netAttackP1 = userNetAttack;
   netAttackP2 = opponentNetAttack;
 
-  // YENİ KOD: Savaş geçmişi kaydı (Değişmez kayıt oluştur)
+  // Savaş sonucu ve HI SCORE güncelleme
   if (netAttackP1 > netAttackP2) {
     const defeatedTeamIndex = rivalTeams.findIndex(team => 
       team.ids.length > 0 && 
@@ -3885,23 +3895,19 @@ function calculateBattleResult(userIDs, opponentIDs) {
     );
 
     if (defeatedTeamIndex !== -1) {
-      // 1. Savaş anındaki takımın SNAPSHOT'unu al
+      const defeatedTeam = rivalTeams[defeatedTeamIndex];
+      // HI SCORE güncelle: Son zafer puanıyla değiştir
+      defeatedTeam.hiScore = netAttackP1;
+      // Mevcut savaş geçmişi kaydı
       const battleSnapshot = {
         date: new Date().toLocaleString(),
-        winnerTeam: [...userIDs], // Array kopyası
-        defeatedTeam: rivalTeams[defeatedTeamIndex].name,
+        winnerTeam: [...userIDs],
+        defeatedTeam: defeatedTeam.name,
         netScores: { player1: netAttackP1, player2: netAttackP2 }
       };
-      
-      // 2. Geçmişe ekle (global battleHistory dizisine)
       if (!window.battleHistory) window.battleHistory = [];
       window.battleHistory.push(battleSnapshot);
-      
-      // 3. Rakip takımı işaretle (STRING olarak kaydet)
-      rivalTeams[defeatedTeamIndex].eliminatedBy = 
-        `${userIDs.join(", ")}`;
-      
-      // 4. LocalStorage'e kaydet
+      rivalTeams[defeatedTeamIndex].eliminatedBy = `${userIDs.join(", ")}`;
       saveRivalTeamsToStorage();
     }
   }
@@ -3910,6 +3916,12 @@ function calculateBattleResult(userIDs, opponentIDs) {
     userNetAttack: Math.max(0, userNetAttack),
     opponentNetAttack: Math.max(0, opponentNetAttack)
   };
+}
+
+function calculateTotalHiScore() {
+  return rivalTeams
+    .filter(team => team.name !== "Player 2" && team.eliminatedBy !== null)
+    .reduce((total, team) => total + team.hiScore, 0);
 }
 
 function updateTeamWolfPopup() {
@@ -3948,11 +3960,11 @@ function loadRivalTeamsFromStorage() {
     const savedTeams = localStorage.getItem('wolfPackRivalTeams');
     if (savedTeams) {
       const parsedTeams = JSON.parse(savedTeams);
-      // Sadece eliminatedBy bilgilerini güncelle, diğer bilgileri koru
       rivalTeams.forEach(team => {
         const savedTeam = parsedTeams.find(t => t.name === team.name);
-        if (savedTeam && savedTeam.eliminatedBy) {
+        if (savedTeam) {
           team.eliminatedBy = savedTeam.eliminatedBy;
+          team.hiScore = savedTeam.hiScore || 0;
         }
       });
     }
