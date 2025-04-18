@@ -241,7 +241,9 @@ let canvasHeight = 870;
 let showSkillDetailsPopup = false; // Controls visibility of the skill details popup
 let selectedSkill = null;          // The skill clicked (e.g., "Morale", "Rage")
 let skillDetails = [];             // Array of { id, traits } for wolves with contributing traits
-
+let showResetPopup = false; // New global variable for reset popup visibility
+let resetButtonX, resetButtonY, resetButtonSize = 20;
+let yesButton, noButton; // Reset popup butonları için
 
 // Puanları önceden hesapla
 function precomputeWolfPoints() {
@@ -385,8 +387,52 @@ playButton.mousePressed(() => {
   
   // İlk stil güncellemesi
   updateEndTurnButtonStyle();
-
   playButton.mouseReleased(() => {});
+  
+  // Reset popup buton pozisyonları
+  yesButtonX = canvasWidth / 2 - 80;
+  yesButtonY = canvasHeight / 2 + 20;
+  noButtonX = canvasWidth / 2 + 20;
+  noButtonY = canvasHeight / 2 + 20;
+
+  // Yes butonu
+  yesButton = createButton("Yes");
+  yesButton.position(yesButtonX, yesButtonY);
+  yesButton.size(65, 25);
+  yesButton.style("background-color", "#0093ff");
+  yesButton.style("color", "#ffffff");
+  yesButton.style("border", "2px solid #0077cc");
+  yesButton.style("border-radius", "20px");
+  yesButton.style("font-size", "14px");
+  yesButton.style("font-weight", "bold");
+  yesButton.style("cursor", "pointer");
+  yesButton.style("box-shadow", "0 4px 8px rgba(0,0,0,0.3)");
+  yesButton.hide();
+  yesButton.mousePressed(() => {
+    rivalTeams.forEach(team => {
+      team.eliminatedBy = null;
+      team.hiScore = 0;
+    });
+    saveRivalTeamsToStorage();
+    showResetPopup = false;
+  });
+
+  // No butonu
+  noButton = createButton("No");
+  noButton.position(noButtonX, noButtonY);
+  noButton.size(65, 25);
+  noButton.style("background-color", "#ff4c40");
+  noButton.style("color", "#ffffff");
+  noButton.style("border", "2px solid #cc3a35");
+  noButton.style("border-radius", "20px");
+  noButton.style("font-size", "14px");
+  noButton.style("font-weight", "bold");
+  noButton.style("cursor", "pointer");
+  noButton.style("box-shadow", "0 4px 8px rgba(0,0,0,0.3)");
+  noButton.hide();
+  noButton.mousePressed(() => {
+    showResetPopup = false;
+  });  
   
   // setup() fonksiyonu içindeki buton oluşturma kısmı
   addToPlayer1Button = createButton(`PLAYER 1`);
@@ -939,7 +985,7 @@ function draw() {
     tableSectionX + 20 + 2 * buttonWidth + 2 * buttonSpacing + 25,
     tableBottomY + 85 + buttonHeight / 2 + 5
   );
-
+ 
   // Rival Selection Section
   const rivalSectionX = leftMargin + leftSectionWidth + 10;
   const rivalSectionY = 60;
@@ -950,7 +996,7 @@ function draw() {
   columnSelect.show();  
   
   // Tüm popup'lar için ortak yarı saydam katman
-  if (showTeamPopup || showPopup || showSkillDetailsPopup || showTeamWolfPopup || battleResultPopup) {
+  if (showTeamPopup || showPopup || showSkillDetailsPopup || showTeamWolfPopup || battleResultPopup || showResetPopup) {
   push();
   fill(0, 0, 0, 150);
   rect(0, 0, canvasWidth, canvasHeight);
@@ -976,7 +1022,11 @@ function draw() {
     });
     
     // Wolf selection popup butonlarının opacity’sini koru
-    if (showPopup) {
+      if (showResetPopup) {
+      if (yesButton) yesButton.style("opacity", "1.0");
+      if (noButton) noButton.style("opacity", "1.0");
+  }
+  else if (showPopup) {
       if (addToPlayer1Button) addToPlayer1Button.style("opacity", "1.0");
       if (addToPlayer2Button) addToPlayer2Button.style("opacity", "1.0");
     }
@@ -1208,6 +1258,49 @@ function draw() {
     }   
   }
 
+  // Reset popup
+if (showResetPopup) {
+  push();
+
+  // Popup kutusu
+  fill("#221f3e");
+  stroke("#3f3973");
+  strokeWeight(2);
+  rect(width / 2 - 150, height / 2 - 100, 300, 200, 10);
+
+  // Başlık
+  textSize(18);
+  textStyle(BOLD);
+  fill("#e1e2e6");
+  textAlign(CENTER);
+  text("Reset progress?", width / 2, height / 2 - 50);
+
+  // Butonları göster
+  yesButton.show();
+  noButton.show();
+
+  // Hover efektleri
+  const isOverYes =
+    mouseX >= yesButtonX &&
+    mouseX <= yesButtonX + 60 &&
+    mouseY >= yesButtonY &&
+    mouseY <= yesButtonY + 40;
+
+  const isOverNo =
+    mouseX >= noButtonX &&
+    mouseX <= noButtonX + 60 &&
+    mouseY >= noButtonY &&
+    mouseY <= noButtonY + 40;
+
+  yesButton.style("background-color", isOverYes ? "#0093ff" : "#005bbb");
+  noButton.style("background-color", isOverNo ? "#ff4c40" : "#cc3a30");
+
+  pop();
+} else {
+  yesButton.hide();
+  noButton.hide();
+}
+  
   // Team Info Popup
   if (showTeamPopup && selectedTeamIDs) {
     push();
@@ -1636,6 +1729,29 @@ function drawRivalSelectionTable(x, y) {
   textAlign(LEFT);
   text("Rival Selection", 10, 20);
 
+// Reset butonu
+  resetButtonX = 180; // Sağ üst köşe
+  resetButtonY = 15; // Başlık ile aynı satır
+  const isOverResetButton =
+    mouseX >= x + resetButtonX - resetButtonSize / 2 &&
+    mouseX <= x + resetButtonX + resetButtonSize / 2 &&
+    mouseY >= y + resetButtonY - resetButtonSize / 2 &&
+    mouseY <= y + resetButtonY + resetButtonSize / 2;
+
+  push();
+  textFont("Arial");
+  if (isOverResetButton) {
+    fill(255, 0, 0); // Hover: kırmızı
+  } else {
+    fill(0); // Normal: siyah
+  }
+  noStroke();
+  ellipse(resetButtonX, resetButtonY, resetButtonSize, resetButtonSize);
+  fill(isOverResetButton ? "#FFFFFF" : "#F5F5F5"); // Hover: beyaz, normal: açık gri
+  textAlign(CENTER);
+  text("✖", resetButtonX, resetButtonY + 5);
+  pop();
+  
   // Yenilen takım sayısını hesapla (Player 2 hariç)
   const defeatedTeamsCount = rivalTeams.filter(team => team.eliminatedBy !== null && team.name !== "Player 2").length;
   // Royal Wolves'un yenilip yenilmediğini kontrol et
@@ -1758,7 +1874,7 @@ function drawRivalSelectionTable(x, y) {
       pop();
     }
   });
-
+  
   // Sayfa geçme butonları
   const tableBottomY = tableHeight - 40; // Butonlar için alt kısımda yer aç
   const buttonWidth = 25;
@@ -2602,6 +2718,85 @@ function mousePressed() {
   const rowHeight = 80;
   const tableStartY = tableSectionY + 150 + 45;
 
+  // Rival selection tablosu tıklama kontrolü
+  const tableX = 50;
+  const tableY = 380;
+  const boxWidth = 75;
+  const boxHeight = 75;
+  const spacingX = 25;
+  const spacingY = 10;
+  const startX = 20;
+  const startY = 50;
+
+  rivalTeams.forEach((team, index) => {
+    if (team.name === "Player 2") return;
+
+    const row = Math.floor(index / 4);
+    const col = index % 4;
+    const x = tableX + startX + col * (boxWidth + spacingX);
+    const y = tableY + startY + row * (boxHeight + spacingY);
+
+    if (
+      mouseX >= x &&
+      mouseX <= x + boxWidth &&
+      mouseY >= y &&
+      mouseY <= y + boxHeight
+    ) {
+      if (!team.eliminatedBy) {
+        selectedRivalTeam = team;
+        opponentSelectedIDs = [...team.ids];
+      }
+    }
+  });
+  
+  // Reset butonu tıklama kontrolü (Öncelikli)
+  const restableX = 628;
+  const restableY = 60;
+  if (
+    mouseX >= restableX + resetButtonX - resetButtonSize / 2 &&
+    mouseX <= restableX + resetButtonX + resetButtonSize / 2 &&
+    mouseY >= restableY + resetButtonY - resetButtonSize / 2 &&
+    mouseY <= restableY + resetButtonY + resetButtonSize / 2
+  ) {
+    showResetPopup = true;
+    return;
+  }
+
+  // Reset popup butonları tıklama kontrolü
+  if (showResetPopup) {
+    const yesButtonX = width / 2 - 80;
+    const yesButtonY = height / 2 + 20;
+    const noButtonX = width / 2 + 20;
+    const noButtonY = height / 2 + 20;
+    const buttonWidth = 60;
+    const buttonHeight = 40;
+
+    // Yes butonu
+    if (
+      mouseX >= yesButtonX &&
+      mouseX <= yesButtonX + buttonWidth &&
+      mouseY >= yesButtonY &&
+      mouseY <= yesButtonY + buttonHeight
+    ) {
+      rivalTeams.forEach(team => {
+        team.eliminatedBy = null;
+        team.hiScore = 0;
+      });
+      saveRivalTeamsToStorage();
+      showResetPopup = false;
+    }
+
+    // No butonu
+    if (
+      mouseX >= noButtonX &&
+      mouseX <= noButtonX + buttonWidth &&
+      mouseY >= noButtonY &&
+      mouseY <= noButtonY + buttonHeight
+    ) {
+      showResetPopup = false;
+    }
+  }
+  
   // Team Wolf Popup kapatma
   if (showTeamWolfPopup) {
     const popupX = canvasWidth / 2 - 175;
@@ -3256,6 +3451,19 @@ function drawWolfDataTableToBuffer(tableSectionX) {
 function mouseMoved() {
   let isOverClickableArea = false;
 
+  // Reset butonu hover kontrolü (YENİ EKLENDİ)
+  const restableX = 628;
+  const restableY = 60;
+  if (
+    mouseX >= restableX + resetButtonX - resetButtonSize / 2 &&
+    mouseX <= restableX + resetButtonX + resetButtonSize / 2 &&
+    mouseY >= restableY + resetButtonY - resetButtonSize / 2 &&
+    mouseY <= restableY + resetButtonY + resetButtonSize / 2
+  ) {
+    isOverClickableArea = true;
+  }
+  
+  
   // Team Wolf Popup tıklama alanı (mouseMoved)
  if (showTeamWolfPopup) {
   const popupX = canvasWidth / 2 - 175;
