@@ -2717,37 +2717,6 @@ function mousePressed() {
   const tableWidth = 200;
   const rowHeight = 80;
   const tableStartY = tableSectionY + 150 + 45;
-
-  // Rival selection tablosu tıklama kontrolü
-  const tableX = 50;
-  const tableY = 380;
-  const boxWidth = 75;
-  const boxHeight = 75;
-  const spacingX = 25;
-  const spacingY = 10;
-  const startX = 20;
-  const startY = 50;
-
-  rivalTeams.forEach((team, index) => {
-    if (team.name === "Player 2") return;
-
-    const row = Math.floor(index / 4);
-    const col = index % 4;
-    const x = tableX + startX + col * (boxWidth + spacingX);
-    const y = tableY + startY + row * (boxHeight + spacingY);
-
-    if (
-      mouseX >= x &&
-      mouseX <= x + boxWidth &&
-      mouseY >= y &&
-      mouseY <= y + boxHeight
-    ) {
-      if (!team.eliminatedBy) {
-        selectedRivalTeam = team;
-        opponentSelectedIDs = [...team.ids];
-      }
-    }
-  });
   
   // Reset butonu tıklama kontrolü (Öncelikli)
   const restableX = 628;
