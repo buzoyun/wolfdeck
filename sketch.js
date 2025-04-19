@@ -3467,6 +3467,33 @@ function mouseMoved() {
   }
 }
 
+  // Skill resimleri tıklama alanı (mouseMoved)
+  if (showTeamPopup) {
+    const teamPopupX = canvasWidth / 2 - 180;
+    const teamPopupY = canvasHeight / 2 - 250;
+    const xButtonX = teamPopupX + 340; // Popup genişliği 360 varsayımıyla
+    const xButtonY = teamPopupY + 15;
+    const xButtonSize = 20; 
+    const centerX = teamPopupX + 180;
+    const centerY = teamPopupY + 230;
+    const radius = 150;
+    const cardSize = 75;
+
+    skillOrder.forEach((skill, i) => {
+      const angle = (i * TWO_PI) / skillOrder.length - HALF_PI;
+      const x = centerX + radius * Math.cos(angle);
+      const y = centerY + radius * Math.sin(angle);
+      const left = x - cardSize / 2;
+      const top = y - cardSize / 2;
+      const right = x + cardSize / 2;
+      const bottom = y + cardSize / 2;
+
+      if (mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= bottom) {
+    isOverClickableArea = true;
+  }
+  });  
+  }
+  
 // Takım sıfırlama tıklama alanı (mouseMoved)
   const leftMargin = 10 + 200 + 10; // tableSectionX + tableWidth + 10
   const xButtonSize = 20;
