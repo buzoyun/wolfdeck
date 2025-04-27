@@ -270,7 +270,9 @@ async function setup() {
   
   let canvasWidth = 840;
   let canvasHeight = 870;
-  createCanvas(canvasWidth, canvasHeight);
+  let canvas = createCanvas(canvasWidth, canvasHeight);
+  let ctx = canvas.drawingContext;
+  ctx.willReadFrequently = true;
   tableBuffer = createGraphics(200, 625);
 
   precomputeWolfPoints();
