@@ -1,3 +1,36 @@
+function preload() {
+  emptyImg = loadImage("assets/images/empty.png");
+  comboImg = loadImage("assets/images/moves/combo.png");
+  threeTImg = loadImage("assets/images/moves/3T.png");
+  questionImg = loadImage("assets/images/question.png");
+  wcBlueImg = loadImage("assets/images/packs/wc_blue.png");
+  wcRedImg = loadImage("assets/images/packs/wc_red.png");
+  seaGif = loadImage("assets/images/gifs/sea.gif");
+  // Ability resimleri
+  abilityImages = {};
+  const abilities = [
+    "Morale",
+    "Money",
+    "Sneak",
+    "Rage",
+    "Bloodlust",
+    "Fear",
+    "Cunning",
+    "Perception",
+    "Composure",
+    "Badass",
+    "3T Bonus",
+  ];
+  abilities.forEach((ability) => {
+    const imgName = ability === "3T Bonus" ? "3T" : ability.toLowerCase();
+    abilityImages[ability] = loadImage(`assets/images/moves/${imgName}.png`);
+    clashSound = loadSound("assets/sounds/clash.mp3");
+    selectSound = loadSound("assets/sounds/select.MP3");
+    removeSound = loadSound("assets/sounds/remove.MP3");
+    drumSound = loadSound("assets/sounds/drum.MP3");
+  });
+}
+
 const abilityColors = {
   "3T Bonus": { text: "#000000", border: "#ced4d9" },
   Badass: { text: "#f67700", border: "#1b1b1b" },
@@ -220,47 +253,7 @@ function precomputeWolfPoints() {
 }
 
 // setup fonksiyonu
-async function setup() {
-  // Ses dosyalarını yükle
-  clashSound = await loadSound("assets/sounds/clash.mp3");
-  selectSound = await loadSound("assets/sounds/select.MP3");
-  removeSound = await loadSound("assets/sounds/remove.MP3");
-  drumSound = await loadSound("assets/sounds/drum.MP3");
-  
-  emptyImg = await loadImage("assets/images/empty.png");
-  comboImg = await loadImage("assets/images/moves/combo.png");
-  threeTImg = await loadImage("assets/images/moves/3T.png");
-  questionImg = await loadImage("assets/images/question.png");
-  wcBlueImg = await loadImage("assets/images/packs/wc_blue.png");
-  wcRedImg = await loadImage("assets/images/packs/wc_red.png");
-  seaGif = await loadImage("assets/images/gifs/sea.gif");
-
-  // Ability resimleri
-  abilityImages = {};
-  const abilities = [
-    "Morale",
-    "Money",
-    "Sneak",
-    "Rage",
-    "Bloodlust",
-    "Fear",
-    "Cunning",
-    "Perception",
-    "Composure",
-    "Badass",
-    "3T Bonus",
-  ];
-
-  // abilities listesindeki her ability için resim yükle
-  for (const ability of abilities) {
-    const imgName = ability === "3T Bonus" ? "3T" : ability.toLowerCase();
-    abilityImages[ability] = await loadImage(`assets/images/moves/${imgName}.png`);
-  }
-
-
-  
-  
-  frameRate(30); // 30 FPS yeterli
+function setup() {  
   // LocalStorage'dan verileri yükle
   loadRivalTeamsFromStorage();
   // Sayfa kapatılırken verileri kaydetmek için event listener ekle
@@ -270,9 +263,7 @@ async function setup() {
   
   let canvasWidth = 840;
   let canvasHeight = 870;
-  let canvas = createCanvas(canvasWidth, canvasHeight);
-  let ctx = canvas.drawingContext;
-  ctx.willReadFrequently = true;
+  createCanvas(canvasWidth, canvasHeight);
   tableBuffer = createGraphics(200, 625);
 
   precomputeWolfPoints();
@@ -1370,10 +1361,10 @@ if (showResetPopup) {
         const nextY = centerY + radius * Math.sin(nextAngle);
         const dx = nextX - x;
         const dy = nextY - y;
-        const distanceValue = Math.sqrt(dx * dx + dy * dy);
-        if (distanceValue > 0) {
-          const dirX = dx / distanceValue;
-          const dirY = dy / distanceValue;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > 0) {
+          const dirX = dx / distance;
+          const dirY = dy / distance;
           const offset = cardSize / 2.2;
           const startX = x + dirX * offset;
           const startY = y + dirY * offset;
@@ -4401,13 +4392,19 @@ function loadOpponentImages(ids) {
   });
 }
 
-function loadImageAsync(url) {
+async function loadImageAsync(url) {
   return new Promise((resolve, reject) => {
-    loadImage(url, img => {
-      loadedImages[img.id] = img;
-      resizedImages[img.id] = img; // Doğrudan kullan
-      resolve(img);
-    }, reject);
+    loadImage(
+      url,
+      (img) => {
+        loadedImages[img.id] = img;
+        let resized = createGraphics(32, 32);
+        resized.image(img, 0, 0, 32, 32);
+        resizedImages[img.id] = resized;
+        resolve(img);
+      },
+      reject
+    );
   });
 }
 
